@@ -3,7 +3,6 @@ import 'error/flagkit_exception.dart';
 
 /// Configuration options for the FlagKit SDK.
 class FlagKitOptions {
-  static const defaultBaseUrl = 'https://api.flagkit.dev/api/v1';
   static const defaultPollingInterval = Duration(seconds: 30);
   static const defaultCacheTtl = Duration(seconds: 300);
   static const defaultMaxCacheSize = 1000;
@@ -15,7 +14,6 @@ class FlagKitOptions {
   static const defaultCircuitBreakerResetTimeout = Duration(seconds: 30);
 
   final String apiKey;
-  final String baseUrl;
   final Duration pollingInterval;
   final Duration cacheTtl;
   final int maxCacheSize;
@@ -31,7 +29,6 @@ class FlagKitOptions {
 
   FlagKitOptions({
     required this.apiKey,
-    this.baseUrl = defaultBaseUrl,
     this.pollingInterval = defaultPollingInterval,
     this.cacheTtl = defaultCacheTtl,
     this.maxCacheSize = defaultMaxCacheSize,
@@ -62,14 +59,6 @@ class FlagKitOptions {
       );
     }
 
-    final uri = Uri.tryParse(baseUrl);
-    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-      throw FlagKitException.configError(
-        ErrorCode.configInvalidBaseUrl,
-        'Invalid base URL',
-      );
-    }
-
     if (pollingInterval.inMilliseconds <= 0) {
       throw FlagKitException.configError(
         ErrorCode.configInvalidPollingInterval,
@@ -92,7 +81,6 @@ class FlagKitOptions {
 /// Builder for FlagKitOptions.
 class FlagKitOptionsBuilder {
   final String _apiKey;
-  String _baseUrl = FlagKitOptions.defaultBaseUrl;
   Duration _pollingInterval = FlagKitOptions.defaultPollingInterval;
   Duration _cacheTtl = FlagKitOptions.defaultCacheTtl;
   int _maxCacheSize = FlagKitOptions.defaultMaxCacheSize;
@@ -108,11 +96,6 @@ class FlagKitOptionsBuilder {
   Map<String, dynamic>? _bootstrap;
 
   FlagKitOptionsBuilder(this._apiKey);
-
-  FlagKitOptionsBuilder baseUrl(String url) {
-    _baseUrl = url;
-    return this;
-  }
 
   FlagKitOptionsBuilder pollingInterval(Duration interval) {
     _pollingInterval = interval;
@@ -177,7 +160,6 @@ class FlagKitOptionsBuilder {
   FlagKitOptions build() {
     return FlagKitOptions(
       apiKey: _apiKey,
-      baseUrl: _baseUrl,
       pollingInterval: _pollingInterval,
       cacheTtl: _cacheTtl,
       maxCacheSize: _maxCacheSize,

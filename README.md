@@ -49,7 +49,6 @@ Use `FlagKitOptions` to configure the SDK:
 ```dart
 final options = FlagKitOptions(
   apiKey: 'sdk_your_api_key',
-  baseUrl: 'https://api.flagkit.dev/api/v1',  // Custom API URL
   pollingInterval: Duration(seconds: 30),      // Flag update polling
   cacheTtl: Duration(minutes: 5),              // Cache duration
   maxCacheSize: 1000,                          // Max cached flags

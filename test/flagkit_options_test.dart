@@ -11,7 +11,6 @@ void main() {
     test('uses default values', () {
       final options = FlagKitOptions(apiKey: 'sdk_test_key');
 
-      expect(options.baseUrl, equals(FlagKitOptions.defaultBaseUrl));
       expect(options.pollingInterval, equals(FlagKitOptions.defaultPollingInterval));
       expect(options.cacheTtl, equals(FlagKitOptions.defaultCacheTtl));
       expect(options.maxCacheSize, equals(FlagKitOptions.defaultMaxCacheSize));
@@ -58,22 +57,6 @@ void main() {
           (e) => e.code,
           'code',
           equals(ErrorCode.configInvalidApiKey),
-        )),
-      );
-    });
-
-    test('validates invalid baseUrl', () {
-      final options = FlagKitOptions(
-        apiKey: 'sdk_test_key',
-        baseUrl: 'not-a-url',
-      );
-
-      expect(
-        () => options.validate(),
-        throwsA(isA<FlagKitException>().having(
-          (e) => e.code,
-          'code',
-          equals(ErrorCode.configInvalidBaseUrl),
         )),
       );
     });
@@ -125,7 +108,6 @@ void main() {
     test('accepts custom values', () {
       final options = FlagKitOptions(
         apiKey: 'sdk_test_key',
-        baseUrl: 'https://custom.api.com/v1',
         pollingInterval: const Duration(seconds: 60),
         cacheTtl: const Duration(minutes: 10),
         maxCacheSize: 500,
@@ -135,7 +117,6 @@ void main() {
         retryAttempts: 5,
       );
 
-      expect(options.baseUrl, equals('https://custom.api.com/v1'));
       expect(options.pollingInterval, equals(const Duration(seconds: 60)));
       expect(options.cacheTtl, equals(const Duration(minutes: 10)));
       expect(options.maxCacheSize, equals(500));
@@ -163,7 +144,6 @@ void main() {
   group('FlagKitOptionsBuilder', () {
     test('builds options with all properties', () {
       final options = FlagKitOptions.builder('sdk_test_key')
-          .baseUrl('https://api.example.com')
           .pollingInterval(const Duration(seconds: 45))
           .cacheTtl(const Duration(minutes: 3))
           .maxCacheSize(200)
@@ -179,7 +159,6 @@ void main() {
           .build();
 
       expect(options.apiKey, equals('sdk_test_key'));
-      expect(options.baseUrl, equals('https://api.example.com'));
       expect(options.pollingInterval, equals(const Duration(seconds: 45)));
       expect(options.cacheTtl, equals(const Duration(minutes: 3)));
       expect(options.maxCacheSize, equals(200));
@@ -197,7 +176,6 @@ void main() {
     test('builder returns self for chaining', () {
       final builder = FlagKitOptions.builder('sdk_test_key');
 
-      expect(builder.baseUrl('https://api.example.com'), same(builder));
       expect(builder.pollingInterval(const Duration(seconds: 30)), same(builder));
       expect(builder.cacheTtl(const Duration(minutes: 5)), same(builder));
     });
