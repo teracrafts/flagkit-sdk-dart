@@ -11,23 +11,25 @@ import '../flagkit_options.dart';
 /// HTTP client with retry logic and circuit breaker.
 class FlagKitHttpClient {
   static const _baseUrl = 'https://api.flagkit.dev/api/v1';
-  static const _localBaseUrl = 'http://localhost:8200/api/v1';
 
   final FlagKitOptions options;
   final http.Client _client;
   final CircuitBreaker _circuitBreaker;
   final Random _random = Random();
-  final bool _isLocal;
+  final int? _localPort;
 
-  FlagKitHttpClient(this.options, {bool isLocal = false})
-      : _isLocal = isLocal,
+  FlagKitHttpClient(this.options, {int? localPort})
+      : _localPort = localPort,
         _client = http.Client(),
         _circuitBreaker = CircuitBreaker(
           threshold: options.circuitBreakerThreshold,
           resetTimeout: options.circuitBreakerResetTimeout,
         );
 
-  String get _effectiveBaseUrl => _isLocal ? _localBaseUrl : _baseUrl;
+  static String getBaseUrl(int? localPort) =>
+      localPort != null ? 'http://localhost:$localPort/api/v1' : _baseUrl;
+
+  String get _effectiveBaseUrl => getBaseUrl(_localPort);
 
   Future<T> get<T>(String path, T Function(Map<String, dynamic>) fromJson) {
     return _executeWithRetry(() => _doGet(path, fromJson));
