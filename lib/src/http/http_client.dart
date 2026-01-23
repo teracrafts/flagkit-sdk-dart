@@ -4,9 +4,9 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 
 import 'circuit_breaker.dart';
-import 'error_code.dart';
-import 'flagkit_exception.dart';
-import 'flagkit_options.dart';
+import '../error/error_code.dart';
+import '../error/flagkit_exception.dart';
+import '../flagkit_options.dart';
 
 /// HTTP client with retry logic and circuit breaker.
 class FlagKitHttpClient {

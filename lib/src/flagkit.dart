@@ -1,9 +1,9 @@
-import 'error_code.dart';
-import 'evaluation_context.dart';
-import 'evaluation_result.dart';
-import 'flag_state.dart';
+import 'error/error_code.dart';
+import 'types/evaluation_context.dart';
+import 'types/evaluation_result.dart';
+import 'types/flag_state.dart';
 import 'flagkit_client.dart';
-import 'flagkit_exception.dart';
+import 'error/flagkit_exception.dart';
 import 'flagkit_options.dart';
 
 /// Static singleton factory for FlagKit SDK.

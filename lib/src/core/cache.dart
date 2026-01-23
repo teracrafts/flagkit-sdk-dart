@@ -1,4 +1,4 @@
-import 'flag_state.dart';
+import '../types/flag_state.dart';
 
 class _CacheEntry<T> {
   final T value;

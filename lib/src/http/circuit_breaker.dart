@@ -1,5 +1,5 @@
-import 'error_code.dart';
-import 'flagkit_exception.dart';
+import '../error/error_code.dart';
+import '../error/flagkit_exception.dart';
 
 /// Circuit breaker states.
 enum CircuitState {

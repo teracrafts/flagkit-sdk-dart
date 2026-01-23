@@ -1,11 +1,11 @@
-import 'cache.dart';
-import 'evaluation_context.dart';
-import 'evaluation_reason.dart';
-import 'evaluation_result.dart';
-import 'flag_state.dart';
-import 'flag_value.dart';
+import 'core/cache.dart';
+import 'types/evaluation_context.dart';
+import 'types/evaluation_reason.dart';
+import 'types/evaluation_result.dart';
+import 'types/flag_state.dart';
+import 'types/flag_value.dart';
 import 'flagkit_options.dart';
-import 'http_client.dart';
+import 'http/http_client.dart';
 
 /// Main FlagKit client for feature flag evaluation.
 class FlagKitClient {
