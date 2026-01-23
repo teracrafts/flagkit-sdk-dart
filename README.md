@@ -54,6 +54,7 @@ final options = FlagKitOptions(
   maxCacheSize: 1000,                          // Max cached flags
   timeout: Duration(seconds: 10),              // HTTP timeout
   retryAttempts: 3,                            // Retry count
+  isLocal: false,                              // Use local server (localhost:8200)
 );
 ```
 
@@ -64,7 +65,19 @@ final options = FlagKitOptions.builder('sdk_your_api_key')
     .pollingInterval(Duration(seconds: 60))
     .cacheTtl(Duration(minutes: 10))
     .maxCacheSize(500)
+    .isLocal(true)  // Use local server for development
     .build();
+```
+
+### Local Development
+
+For local development with a FlagKit server running on localhost:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_your_api_key',
+  isLocal: true,  // Uses http://localhost:8200/api/v1
+);
 ```
 
 ### Bootstrap Data

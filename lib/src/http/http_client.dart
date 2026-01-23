@@ -11,18 +11,23 @@ import '../flagkit_options.dart';
 /// HTTP client with retry logic and circuit breaker.
 class FlagKitHttpClient {
   static const _baseUrl = 'https://api.flagkit.dev/api/v1';
+  static const _localBaseUrl = 'http://localhost:8200/api/v1';
 
   final FlagKitOptions options;
   final http.Client _client;
   final CircuitBreaker _circuitBreaker;
   final Random _random = Random();
+  final bool _isLocal;
 
-  FlagKitHttpClient(this.options)
-      : _client = http.Client(),
+  FlagKitHttpClient(this.options, {bool isLocal = false})
+      : _isLocal = isLocal,
+        _client = http.Client(),
         _circuitBreaker = CircuitBreaker(
           threshold: options.circuitBreakerThreshold,
           resetTimeout: options.circuitBreakerResetTimeout,
         );
+
+  String get _effectiveBaseUrl => _isLocal ? _localBaseUrl : _baseUrl;
 
   Future<T> get<T>(String path, T Function(Map<String, dynamic>) fromJson) {
     return _executeWithRetry(() => _doGet(path, fromJson));
@@ -42,7 +47,7 @@ class FlagKitHttpClient {
 
   Future<T> _doGet<T>(
       String path, T Function(Map<String, dynamic>) fromJson) async {
-    final url = Uri.parse('$_baseUrl$path');
+    final url = Uri.parse('$_effectiveBaseUrl$path');
 
     final response = await _client
         .get(url, headers: _headers)
@@ -59,7 +64,7 @@ class FlagKitHttpClient {
     Map<String, dynamic> body,
     T Function(Map<String, dynamic>) fromJson,
   ) async {
-    final url = Uri.parse('$_baseUrl$path');
+    final url = Uri.parse('$_effectiveBaseUrl$path');
 
     final response = await _client
         .post(
@@ -76,7 +81,7 @@ class FlagKitHttpClient {
   }
 
   Future<void> _doPostVoid(String path, Map<String, dynamic> body) async {
-    final url = Uri.parse('$_baseUrl$path');
+    final url = Uri.parse('$_effectiveBaseUrl$path');
 
     final response = await _client
         .post(

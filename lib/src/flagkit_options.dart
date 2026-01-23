@@ -26,6 +26,7 @@ class FlagKitOptions {
   final int circuitBreakerThreshold;
   final Duration circuitBreakerResetTimeout;
   final Map<String, dynamic>? bootstrap;
+  final bool isLocal;
 
   FlagKitOptions({
     required this.apiKey,
@@ -41,6 +42,7 @@ class FlagKitOptions {
     this.circuitBreakerThreshold = defaultCircuitBreakerThreshold,
     this.circuitBreakerResetTimeout = defaultCircuitBreakerResetTimeout,
     this.bootstrap,
+    this.isLocal = false,
   });
 
   void validate() {
@@ -94,6 +96,7 @@ class FlagKitOptionsBuilder {
   Duration _circuitBreakerResetTimeout =
       FlagKitOptions.defaultCircuitBreakerResetTimeout;
   Map<String, dynamic>? _bootstrap;
+  bool _isLocal = false;
 
   FlagKitOptionsBuilder(this._apiKey);
 
@@ -157,6 +160,11 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  FlagKitOptionsBuilder isLocal(bool local) {
+    _isLocal = local;
+    return this;
+  }
+
   FlagKitOptions build() {
     return FlagKitOptions(
       apiKey: _apiKey,
@@ -172,6 +180,7 @@ class FlagKitOptionsBuilder {
       circuitBreakerThreshold: _circuitBreakerThreshold,
       circuitBreakerResetTimeout: _circuitBreakerResetTimeout,
       bootstrap: _bootstrap,
+      isLocal: _isLocal,
     );
   }
 }

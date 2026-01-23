@@ -139,6 +139,19 @@ void main() {
       expect(options.bootstrap!['dark-mode'], isTrue);
       expect(options.bootstrap!['max-items'], equals(100));
     });
+
+    test('isLocal defaults to false', () {
+      final options = FlagKitOptions(apiKey: 'sdk_test_key');
+      expect(options.isLocal, isFalse);
+    });
+
+    test('isLocal can be set to true', () {
+      final options = FlagKitOptions(
+        apiKey: 'sdk_test_key',
+        isLocal: true,
+      );
+      expect(options.isLocal, isTrue);
+    });
   });
 
   group('FlagKitOptionsBuilder', () {
@@ -178,6 +191,20 @@ void main() {
 
       expect(builder.pollingInterval(const Duration(seconds: 30)), same(builder));
       expect(builder.cacheTtl(const Duration(minutes: 5)), same(builder));
+    });
+
+    test('builder sets isLocal', () {
+      final options = FlagKitOptions.builder('sdk_test_key')
+          .isLocal(true)
+          .build();
+
+      expect(options.isLocal, isTrue);
+    });
+
+    test('builder isLocal defaults to false', () {
+      final options = FlagKitOptions.builder('sdk_test_key').build();
+
+      expect(options.isLocal, isFalse);
     });
   });
 }
