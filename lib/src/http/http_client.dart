@@ -102,7 +102,6 @@ class FlagKitHttpClient {
   }
 
   Map<String, String> get _headers => {
-        'Authorization': 'Bearer ${options.apiKey}',
         'X-API-Key': options.apiKey,
         'User-Agent': 'FlagKit-Dart/1.0.0',
         'Content-Type': 'application/json',
