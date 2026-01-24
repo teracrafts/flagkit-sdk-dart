@@ -7,6 +7,9 @@ import 'error/flagkit_exception.dart';
 import 'flagkit_options.dart';
 
 /// Static singleton factory for FlagKit SDK.
+///
+/// Provides a convenient way to access the FlagKit SDK globally.
+/// Use [initialize] to create a client, then access it via [instance] or [getClient].
 class FlagKit {
   static FlagKitClient? _instance;
   static bool _initializing = false;
@@ -78,6 +81,13 @@ class FlagKit {
     return _instance!;
   }
 
+  /// Waits for the SDK to be ready.
+  ///
+  /// Throws [FlagKitException] if not initialized.
+  static Future<void> waitForReady() {
+    return getClient().waitForReady();
+  }
+
   /// Identifies a user with optional attributes.
   static void identify(String userId, [Map<String, dynamic>? attributes]) {
     getClient().identify(userId, attributes);
@@ -88,9 +98,19 @@ class FlagKit {
     getClient().setContext(context);
   }
 
+  /// Gets the current global context.
+  static EvaluationContext? getContext() {
+    return getClient().getContext();
+  }
+
   /// Clears the global evaluation context.
   static void clearContext() {
     getClient().clearContext();
+  }
+
+  /// Resets to anonymous state.
+  static void resetContext() {
+    getClient().reset();
   }
 
   /// Evaluates a flag synchronously using cached values.
@@ -103,6 +123,19 @@ class FlagKit {
   static Future<EvaluationResult> evaluateAsync(String flagKey,
       [EvaluationContext? context]) {
     return getClient().evaluateAsync(flagKey, context);
+  }
+
+  /// Evaluates all flags and returns a map of results.
+  static Future<Map<String, EvaluationResult>> evaluateAll(
+      [EvaluationContext? context]) {
+    return getClient().evaluateAll(context);
+  }
+
+  /// Evaluates multiple flags in a single request.
+  static Future<Map<String, EvaluationResult>> evaluateBatch(
+      List<String> flagKeys,
+      [EvaluationContext? context]) {
+    return getClient().evaluateBatch(flagKeys, context);
   }
 
   /// Gets a boolean flag value with a default.
@@ -136,9 +169,34 @@ class FlagKit {
     return getClient().getJsonValue(flagKey, defaultValue, context);
   }
 
+  /// Returns true if the flag exists in the cache.
+  static bool hasFlag(String flagKey) {
+    return getClient().hasFlag(flagKey);
+  }
+
+  /// Gets all flag keys from the cache.
+  static List<String> getAllFlagKeys() {
+    return getClient().getAllFlagKeys();
+  }
+
   /// Gets all cached flags.
   static Map<String, FlagState> getAllFlags() {
     return getClient().getAllFlags();
+  }
+
+  /// Tracks a custom event.
+  static void track(String eventType, [Map<String, dynamic>? eventData]) {
+    getClient().track(eventType, eventData);
+  }
+
+  /// Flushes pending events immediately.
+  static Future<void> flush() {
+    return getClient().flush();
+  }
+
+  /// Forces a refresh of flag configurations from the server.
+  static Future<void> refresh() {
+    return getClient().refresh();
   }
 
   /// Polls for flag updates.
@@ -146,15 +204,28 @@ class FlagKit {
     return getClient().pollForUpdates(since);
   }
 
+  /// Starts background polling for flag updates.
+  static void startPolling() {
+    getClient().startPolling();
+  }
+
+  /// Stops background polling.
+  static void stopPolling() {
+    getClient().stopPolling();
+  }
+
+  /// Returns true if polling is active.
+  static bool get isPolling => _instance?.isPolling ?? false;
+
   /// Closes the SDK and releases resources.
-  static void close() {
-    _instance?.close();
+  static Future<void> close() async {
+    await _instance?.close();
     _instance = null;
   }
 
   /// Resets the SDK state (for testing).
-  static void reset() {
-    _instance?.close();
+  static Future<void> reset() async {
+    await _instance?.close();
     _instance = null;
     _initializing = false;
   }
