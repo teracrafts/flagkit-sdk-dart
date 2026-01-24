@@ -133,13 +133,12 @@ void main() {
     test('toJson serializes context', () {
       final context = EvaluationContext(
         userId: 'user-123',
-        attributes: {'plan': FlagValue('premium')},
-      );
+      ).withAttribute('plan', 'premium');
 
       final json = context.toJson();
 
       expect(json['userId'], equals('user-123'));
-      expect(json['attributes']['plan'], equals('premium'));
+      expect(json['plan'], equals('premium'));
     });
 
     test('copyWith creates modified copy', () {
