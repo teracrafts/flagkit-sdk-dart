@@ -16,9 +16,13 @@ export 'src/error/flagkit_exception.dart';
 // HTTP
 export 'src/http/http_client.dart';
 export 'src/http/circuit_breaker.dart';
+export 'src/http/retry.dart';
 
 // Core
 export 'src/core/cache.dart';
+export 'src/core/context_manager.dart';
+export 'src/core/event_queue.dart';
+export 'src/core/polling_manager.dart';
 
 // Utils
 export 'src/utils/security.dart';
