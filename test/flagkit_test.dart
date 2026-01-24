@@ -140,8 +140,8 @@ void main() {
       FlagKit.identify('user-123', {'plan': 'premium'});
 
       final context = FlagKit.getClient().globalContext;
-      expect(context.userId, equals('user-123'));
-      expect(context.attributes['plan']?.stringValue, equals('premium'));
+      expect(context?.userId, equals('user-123'));
+      expect(context?.attributes['plan']?.stringValue, equals('premium'));
     });
 
     test('setContext updates global context', () {
@@ -154,13 +154,12 @@ void main() {
 
       final newContext = EvaluationContext(
         userId: 'user-456',
-        attributes: {'role': FlagValue('admin')},
-      );
+      ).withAttribute('role', 'admin');
       FlagKit.setContext(newContext);
 
       final context = FlagKit.getClient().globalContext;
-      expect(context.userId, equals('user-456'));
-      expect(context.attributes['role']?.stringValue, equals('admin'));
+      expect(context?.userId, equals('user-456'));
+      expect(context?.attributes['role']?.stringValue, equals('admin'));
     });
 
     test('clearContext resets global context', () {
@@ -174,11 +173,11 @@ void main() {
       FlagKit.clearContext();
 
       final context = FlagKit.getClient().globalContext;
-      expect(context.userId, isNull);
-      expect(context.attributes, isEmpty);
+      expect(context?.userId, isNull);
+      expect(context?.attributes ?? {}, isEmpty);
     });
 
-    test('close cleans up resources', () {
+    test('close cleans up resources', () async {
       final options = FlagKitOptions(
         apiKey: 'sdk_test_key',
         bootstrap: {},
@@ -187,19 +186,19 @@ void main() {
       FlagKit.createClient(options);
       expect(FlagKit.isInitialized, isTrue);
 
-      FlagKit.close();
+      await FlagKit.close();
       expect(FlagKit.isInitialized, isFalse);
       expect(FlagKit.instance, isNull);
     });
 
-    test('reset cleans up resources', () {
+    test('reset cleans up resources', () async {
       final options = FlagKitOptions(
         apiKey: 'sdk_test_key',
         bootstrap: {},
       );
 
       FlagKit.createClient(options);
-      FlagKit.reset();
+      await FlagKit.reset();
 
       expect(FlagKit.isInitialized, isFalse);
       expect(FlagKit.instance, isNull);
