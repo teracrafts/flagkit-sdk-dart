@@ -8,28 +8,33 @@ import '../error/error_code.dart';
 import '../error/flagkit_exception.dart';
 import '../flagkit_options.dart';
 
-/// HTTP client with retry logic and circuit breaker.
-class FlagKitHttpClient {
-  static const _baseUrl = 'https://api.flagkit.dev/api/v1';
+/// SDK version for User-Agent header.
+const String sdkVersion = '1.0.0';
 
+/// HTTP client with retry logic and circuit breaker.
+///
+/// Handles all HTTP communication with the FlagKit API including:
+/// - Automatic retries with exponential backoff
+/// - Circuit breaker for fault tolerance
+/// - Request timeout handling
+class FlagKitHttpClient {
   final FlagKitOptions options;
   final http.Client _client;
   final CircuitBreaker _circuitBreaker;
   final Random _random = Random();
-  final int? _localPort;
 
-  FlagKitHttpClient(this.options, {int? localPort})
-      : _localPort = localPort,
-        _client = http.Client(),
+  FlagKitHttpClient(this.options, {http.Client? client, int? localPort})
+      : _client = client ?? http.Client(),
         _circuitBreaker = CircuitBreaker(
           threshold: options.circuitBreakerThreshold,
           resetTimeout: options.circuitBreakerResetTimeout,
         );
 
-  static String getBaseUrl(int? localPort) =>
-      localPort != null ? 'http://localhost:$localPort/api/v1' : _baseUrl;
+  /// Gets the effective base URL from options.
+  String get _effectiveBaseUrl => options.effectiveBaseUrl;
 
-  String get _effectiveBaseUrl => getBaseUrl(_localPort);
+  /// Gets the circuit breaker instance.
+  CircuitBreaker get circuitBreaker => _circuitBreaker;
 
   Future<T> get<T>(String path, T Function(Map<String, dynamic>) fromJson) {
     return _executeWithRetry(() => _doGet(path, fromJson));
@@ -101,9 +106,12 @@ class FlagKitHttpClient {
     }
   }
 
+  /// Gets the headers for API requests per spec.
   Map<String, String> get _headers => {
         'X-API-Key': options.apiKey,
-        'User-Agent': 'FlagKit-Dart/1.0.0',
+        'User-Agent': 'FlagKit-Dart/$sdkVersion',
+        'X-FlagKit-SDK-Version': sdkVersion,
+        'X-FlagKit-SDK-Language': 'dart',
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
