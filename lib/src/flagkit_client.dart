@@ -17,7 +17,7 @@ class FlagKitClient {
   bool _initialized = false;
 
   FlagKitClient(this.options)
-      : _httpClient = FlagKitHttpClient(options, isLocal: options.isLocal),
+      : _httpClient = FlagKitHttpClient(options, localPort: options.localPort),
         _cache = FlagCache(
           maxSize: options.maxCacheSize,
           ttl: options.cacheTtl,

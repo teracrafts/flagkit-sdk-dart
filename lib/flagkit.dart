@@ -20,6 +20,9 @@ export 'src/http/circuit_breaker.dart';
 // Core
 export 'src/core/cache.dart';
 
+// Utils
+export 'src/utils/security.dart';
+
 // Main
 export 'src/flagkit_options.dart';
 export 'src/flagkit_client.dart';

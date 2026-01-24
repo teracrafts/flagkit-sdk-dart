@@ -140,17 +140,19 @@ void main() {
       expect(options.bootstrap!['max-items'], equals(100));
     });
 
-    test('isLocal defaults to false', () {
+    test('isLocal defaults to false when localPort is null', () {
       final options = FlagKitOptions(apiKey: 'sdk_test_key');
       expect(options.isLocal, isFalse);
+      expect(options.localPort, isNull);
     });
 
-    test('isLocal can be set to true', () {
+    test('isLocal is true when localPort is set', () {
       final options = FlagKitOptions(
         apiKey: 'sdk_test_key',
-        isLocal: true,
+        localPort: 8080,
       );
       expect(options.isLocal, isTrue);
+      expect(options.localPort, equals(8080));
     });
   });
 
@@ -193,18 +195,20 @@ void main() {
       expect(builder.cacheTtl(const Duration(minutes: 5)), same(builder));
     });
 
-    test('builder sets isLocal', () {
+    test('builder sets localPort', () {
       final options = FlagKitOptions.builder('sdk_test_key')
-          .isLocal(true)
+          .localPort(8080)
           .build();
 
       expect(options.isLocal, isTrue);
+      expect(options.localPort, equals(8080));
     });
 
-    test('builder isLocal defaults to false', () {
+    test('builder localPort defaults to null (isLocal false)', () {
       final options = FlagKitOptions.builder('sdk_test_key').build();
 
       expect(options.isLocal, isFalse);
+      expect(options.localPort, isNull);
     });
   });
 }

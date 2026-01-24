@@ -28,6 +28,9 @@ class FlagKitOptions {
   final Map<String, dynamic>? bootstrap;
   final int? localPort;
 
+  /// Whether the SDK is configured for local development.
+  bool get isLocal => localPort != null;
+
   FlagKitOptions({
     required this.apiKey,
     this.pollingInterval = defaultPollingInterval,
