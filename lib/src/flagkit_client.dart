@@ -4,7 +4,9 @@ import 'dart:math';
 import 'core/cache.dart';
 import 'core/context_manager.dart';
 import 'core/event_queue.dart';
+import 'core/event_persistence.dart';
 import 'core/polling_manager.dart';
+import 'dart:io';
 import 'error/error_code.dart';
 import 'error/flagkit_exception.dart';
 import 'http/circuit_breaker.dart';
@@ -175,7 +177,7 @@ class FlagKitClient {
 
       // Initialize event queue if events are enabled
       if (options.eventsEnabled) {
-        _initializeEventQueue();
+        await _initializeEventQueue();
       }
 
       // Initialize polling manager if enabled
@@ -686,7 +688,23 @@ class FlagKitClient {
     }
   }
 
-  void _initializeEventQueue() {
+  Future<void> _initializeEventQueue() async {
+    EventPersistence? eventPersistence;
+
+    // Initialize event persistence if enabled
+    if (options.persistEvents) {
+      final storagePath = options.eventStoragePath ??
+          '${Directory.systemTemp.path}/flagkit/events';
+
+      eventPersistence = EventPersistence(
+        storagePath: storagePath,
+        config: EventPersistenceConfig(
+          maxEvents: options.maxPersistedEvents,
+          flushInterval: options.persistenceFlushInterval,
+        ),
+      );
+    }
+
     _eventQueue = EventQueue(
       EventQueueOptions(
         httpClient: _httpClient,
@@ -697,8 +715,13 @@ class FlagKitClient {
           batchSize: options.eventBatchSize,
           flushIntervalMs: options.eventFlushInterval.inMilliseconds,
         ),
+        persistEvents: options.persistEvents,
+        eventPersistence: eventPersistence,
       ),
     );
+
+    // Initialize event queue (recovers persisted events)
+    await _eventQueue!.initialize();
 
     if (_contextManager.userId != null) {
       _eventQueue!.setUserId(_contextManager.userId);
