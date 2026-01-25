@@ -22,6 +22,7 @@ export 'src/http/retry.dart';
 export 'src/core/cache.dart';
 export 'src/core/context_manager.dart';
 export 'src/core/event_queue.dart';
+export 'src/core/event_persistence.dart';
 export 'src/core/polling_manager.dart';
 
 // Utils
