@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 
 import '../error/error_code.dart';
 import '../error/flagkit_exception.dart';
 import '../http/http_client.dart';
+import 'event_persistence.dart';
 
 /// Types of events that can be tracked.
 enum EventType {
@@ -30,6 +32,9 @@ enum EventType {
 
 /// Base event structure.
 class BaseEvent {
+  /// Unique event ID.
+  final String id;
+
   /// The type of event.
   final String eventType;
 
@@ -54,7 +59,8 @@ class BaseEvent {
   /// User ID if available.
   final String? userId;
 
-  const BaseEvent({
+  BaseEvent({
+    String? id,
     required this.eventType,
     required this.timestamp,
     required this.sdkVersion,
@@ -63,10 +69,17 @@ class BaseEvent {
     required this.environmentId,
     this.eventData,
     this.userId,
-  });
+  }) : id = id ?? _generateEventId();
+
+  static String _generateEventId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(12, (_) => random.nextInt(256));
+    return 'evt_${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
+  }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'eventType': eventType,
       'timestamp': timestamp,
       'sdkVersion': sdkVersion,
@@ -76,6 +89,29 @@ class BaseEvent {
       if (eventData != null) 'eventData': eventData,
       if (userId != null) 'userId': userId,
     };
+  }
+
+  /// Creates a BaseEvent from a PersistedEvent.
+  factory BaseEvent.fromPersistedEvent(
+    PersistedEvent persistedEvent, {
+    required String sdkVersion,
+    required String sessionId,
+    required String environmentId,
+    String? userId,
+  }) {
+    return BaseEvent(
+      id: persistedEvent.id,
+      eventType: persistedEvent.type,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(persistedEvent.timestamp)
+          .toUtc()
+          .toIso8601String(),
+      sdkVersion: sdkVersion,
+      sdkLanguage: 'dart',
+      sessionId: sessionId,
+      environmentId: environmentId,
+      eventData: persistedEvent.data,
+      userId: userId,
+    );
   }
 }
 
@@ -129,12 +165,20 @@ class EventQueueOptions {
   /// Event queue configuration.
   final EventQueueConfig config;
 
+  /// Whether to enable event persistence.
+  final bool persistEvents;
+
+  /// Event persistence instance (if enabled).
+  final EventPersistence? eventPersistence;
+
   const EventQueueOptions({
     required this.httpClient,
     required this.sessionId,
     required this.environmentId,
     required this.sdkVersion,
     this.config = EventQueueConfig.defaultConfig,
+    this.persistEvents = false,
+    this.eventPersistence,
   });
 }
 
@@ -145,26 +189,63 @@ class EventQueueOptions {
 /// - Automatic retry on failure
 /// - Event sampling
 /// - Graceful shutdown
+/// - Optional crash-resilient persistence
 class EventQueue {
   final List<BaseEvent> _queue = [];
   final FlagKitHttpClient _httpClient;
   final EventQueueConfig _config;
   final String _sessionId;
   final String _sdkVersion;
+  final bool _persistEvents;
+  final EventPersistence? _eventPersistence;
+
+  /// Maps event IDs to their persisted event IDs for tracking.
+  final Map<String, String> _eventIdMap = {};
 
   String _environmentId;
   String? _userId;
   Timer? _flushTimer;
   bool _isFlushing = false;
   bool _isClosed = false;
+  bool _isInitialized = false;
 
   EventQueue(EventQueueOptions options)
       : _httpClient = options.httpClient,
         _config = options.config,
         _sessionId = options.sessionId,
         _sdkVersion = options.sdkVersion,
-        _environmentId = options.environmentId {
+        _environmentId = options.environmentId,
+        _persistEvents = options.persistEvents,
+        _eventPersistence = options.eventPersistence {
     _startFlushTimer();
+  }
+
+  /// Initializes the event queue.
+  ///
+  /// If persistence is enabled, recovers any pending events from disk.
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    if (_persistEvents && _eventPersistence != null) {
+      try {
+        final recoveredEvents = await _eventPersistence!.recover();
+        for (final persistedEvent in recoveredEvents) {
+          final event = BaseEvent.fromPersistedEvent(
+            persistedEvent,
+            sdkVersion: _sdkVersion,
+            sessionId: _sessionId,
+            environmentId: _environmentId,
+            userId: _userId,
+          );
+          _queue.add(event);
+          _eventIdMap[event.id] = persistedEvent.id;
+        }
+      } catch (e) {
+        // Log error but continue - recovery failure shouldn't block SDK
+      }
+    }
+
+    _isInitialized = true;
   }
 
   /// Sets the environment ID.
@@ -256,10 +337,51 @@ class EventQueue {
     final events = List<BaseEvent>.from(_queue);
     _queue.clear();
 
+    // Collect persisted event IDs for status updates
+    final persistedIds = <String>[];
+    for (final event in events) {
+      final persistedId = _eventIdMap[event.id];
+      if (persistedId != null) {
+        persistedIds.add(persistedId);
+      }
+    }
+
+    // Mark as sending if persistence is enabled
+    if (_persistEvents && _eventPersistence != null && persistedIds.isNotEmpty) {
+      try {
+        await _eventPersistence!.markSending(persistedIds);
+      } catch (e) {
+        // Continue even if marking fails
+      }
+    }
+
     try {
       await _sendEvents(events);
+
+      // Mark as sent on success
+      if (_persistEvents && _eventPersistence != null && persistedIds.isNotEmpty) {
+        try {
+          await _eventPersistence!.markSent(persistedIds);
+          // Clean up event ID map
+          for (final event in events) {
+            _eventIdMap.remove(event.id);
+          }
+        } catch (e) {
+          // Continue even if marking fails
+        }
+      }
+
       return events.length;
     } catch (error) {
+      // Revert to pending on failure
+      if (_persistEvents && _eventPersistence != null && persistedIds.isNotEmpty) {
+        try {
+          await _eventPersistence!.markPending(persistedIds);
+        } catch (e) {
+          // Continue even if marking fails
+        }
+      }
+
       // Re-queue failed events (up to max size)
       final availableSpace = _config.maxQueueSize - _queue.length;
       final requeue = events.take(availableSpace).toList();
@@ -299,9 +421,32 @@ class EventQueue {
         // Ignore errors during shutdown
       }
     }
+
+    // Close event persistence
+    if (_eventPersistence != null) {
+      try {
+        await _eventPersistence!.close();
+      } catch (_) {
+        // Ignore errors during shutdown
+      }
+    }
   }
 
   void _addToQueue(BaseEvent event) {
+    // Persist event before adding to queue (crash-safe)
+    if (_persistEvents && _eventPersistence != null) {
+      try {
+        final persistedEvent = PersistedEvent.create(
+          type: event.eventType,
+          data: event.toJson(),
+        );
+        _eventPersistence!.persist(persistedEvent);
+        _eventIdMap[event.id] = persistedEvent.id;
+      } catch (e) {
+        // Log error but continue - persistence failure shouldn't block tracking
+      }
+    }
+
     // Enforce max queue size
     if (_queue.length >= _config.maxQueueSize) {
       // Drop oldest event
