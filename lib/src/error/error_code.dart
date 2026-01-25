@@ -76,7 +76,14 @@ enum ErrorCode {
   configInvalidApiKey('CONFIG_INVALID_API_KEY'),
   configInvalidBaseUrl('CONFIG_INVALID_BASE_URL'),
   configInvalidPollingInterval('CONFIG_INVALID_POLLING_INTERVAL'),
-  configInvalidCacheTtl('CONFIG_INVALID_CACHE_TTL');
+  configInvalidCacheTtl('CONFIG_INVALID_CACHE_TTL'),
+
+  // Security errors
+  securityLocalPortInProduction('SECURITY_LOCAL_PORT_IN_PRODUCTION'),
+  securityPIIDetected('SECURITY_PII_DETECTED'),
+  securityEncryptionFailed('SECURITY_ENCRYPTION_FAILED'),
+  securityDecryptionFailed('SECURITY_DECRYPTION_FAILED'),
+  securityKeyRotationFailed('SECURITY_KEY_ROTATION_FAILED');
 
   const ErrorCode(this.code);
 

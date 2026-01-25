@@ -66,6 +66,14 @@ class FlagKitException implements Exception {
         ErrorCode.initNotInitialized,
       }.contains(code);
 
+  bool get isSecurityError => const {
+        ErrorCode.securityLocalPortInProduction,
+        ErrorCode.securityPIIDetected,
+        ErrorCode.securityEncryptionFailed,
+        ErrorCode.securityDecryptionFailed,
+        ErrorCode.securityKeyRotationFailed,
+      }.contains(code);
+
   static FlagKitException configError(ErrorCode code, String message) {
     return FlagKitException(code, message);
   }
@@ -91,5 +99,56 @@ class FlagKitException implements Exception {
   static FlagKitException alreadyInitialized() {
     return FlagKitException(
         ErrorCode.sdkAlreadyInitialized, 'SDK already initialized.');
+  }
+
+  static FlagKitException securityError(ErrorCode code, String message,
+      [Object? cause]) {
+    return FlagKitException(code, message, cause);
+  }
+}
+
+/// Exception thrown for security-related violations.
+///
+/// This is a specialized exception for security issues like:
+/// - Using localPort in production environment
+/// - PII detected in strict mode
+/// - Encryption/decryption failures
+class SecurityException extends FlagKitException {
+  SecurityException(super.code, super.message, [super.cause]);
+
+  /// Creates a security exception for local port usage in production.
+  factory SecurityException.localPortInProduction() {
+    return SecurityException(
+      ErrorCode.securityLocalPortInProduction,
+      'localPort cannot be used in production environment. '
+          'Set DART_ENV to a value other than "production" for local development.',
+    );
+  }
+
+  /// Creates a security exception for PII detection in strict mode.
+  factory SecurityException.piiDetected(List<String> fields) {
+    return SecurityException(
+      ErrorCode.securityPIIDetected,
+      'Potential PII detected in strict mode: ${fields.join(', ')}. '
+          'Add these fields to privateAttributes or disable strictPIIMode.',
+    );
+  }
+
+  /// Creates a security exception for encryption failures.
+  factory SecurityException.encryptionFailed(String message, [Object? cause]) {
+    return SecurityException(
+      ErrorCode.securityEncryptionFailed,
+      'Encryption failed: $message',
+      cause,
+    );
+  }
+
+  /// Creates a security exception for decryption failures.
+  factory SecurityException.decryptionFailed(String message, [Object? cause]) {
+    return SecurityException(
+      ErrorCode.securityDecryptionFailed,
+      'Decryption failed: $message',
+      cause,
+    );
   }
 }

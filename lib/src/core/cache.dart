@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import '../types/flag_state.dart';
+import '../utils/security.dart';
 
 class _CacheEntry<T> {
   final T value;
@@ -126,5 +129,108 @@ class FlagCache extends Cache<String, FlagState> {
       }
     }
     return result;
+  }
+}
+
+/// Encrypted flag cache that stores data with AES-GCM encryption.
+///
+/// This cache encrypts flag data at rest using a key derived from the API key.
+/// It provides the same interface as [FlagCache] but with added security.
+class EncryptedFlagCache extends FlagCache {
+  final EncryptedStorage _storage;
+
+  // Internal storage for encrypted data
+  final Map<String, String> _encryptedData = {};
+
+  EncryptedFlagCache({
+    required String apiKey,
+    super.maxSize = 1000,
+    super.ttl = const Duration(minutes: 5),
+    int pbkdf2Iterations = 100000,
+  }) : _storage = EncryptedStorage.fromApiKey(apiKey, iterations: pbkdf2Iterations);
+
+  @override
+  void set(String key, FlagState value, [Duration? customTtl]) {
+    // Store in parent cache for fast access
+    super.set(key, value, customTtl);
+
+    // Also store encrypted version
+    try {
+      final json = value.toJson();
+      final encrypted = _storage.encryptJson(json);
+      _encryptedData[key] = encrypted;
+    } catch (e) {
+      // If encryption fails, continue with unencrypted cache
+      // The data is still in memory cache
+    }
+  }
+
+  @override
+  bool remove(String key) {
+    _encryptedData.remove(key);
+    return super.remove(key);
+  }
+
+  @override
+  void clear() {
+    _encryptedData.clear();
+    super.clear();
+  }
+
+  /// Exports all encrypted data for persistence.
+  ///
+  /// Returns a map of key to encrypted JSON string.
+  Map<String, String> exportEncrypted() {
+    return Map.from(_encryptedData);
+  }
+
+  /// Imports encrypted data from persistence.
+  ///
+  /// [data] is a map of key to encrypted JSON string.
+  void importEncrypted(Map<String, String> data) {
+    for (final entry in data.entries) {
+      try {
+        final json = _storage.decryptJson(entry.value);
+        final flag = FlagState.fromJson(json);
+        super.set(entry.key, flag);
+        _encryptedData[entry.key] = entry.value;
+      } catch (e) {
+        // Skip invalid entries
+        continue;
+      }
+    }
+  }
+
+  /// Serializes the entire cache to an encrypted string.
+  ///
+  /// This can be used to persist the cache to disk or shared preferences.
+  String serializeEncrypted() {
+    final allFlags = getAll();
+    final flagsJson = <String, dynamic>{};
+
+    for (final entry in allFlags.entries) {
+      flagsJson[entry.key] = entry.value.toJson();
+    }
+
+    return _storage.encryptJson(flagsJson);
+  }
+
+  /// Deserializes and loads cache from an encrypted string.
+  ///
+  /// [encrypted] is the encrypted string from [serializeEncrypted].
+  void deserializeEncrypted(String encrypted) {
+    try {
+      final flagsJson = _storage.decryptJson(encrypted);
+
+      for (final entry in flagsJson.entries) {
+        final flagData = entry.value as Map<String, dynamic>;
+        final flag = FlagState.fromJson(flagData);
+        set(entry.key, flag);
+      }
+    } catch (e) {
+      // If decryption fails, clear the cache
+      clear();
+      rethrow;
+    }
   }
 }

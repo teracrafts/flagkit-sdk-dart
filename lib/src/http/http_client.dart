@@ -7,6 +7,7 @@ import 'circuit_breaker.dart';
 import '../error/error_code.dart';
 import '../error/flagkit_exception.dart';
 import '../flagkit_options.dart';
+import '../utils/security.dart';
 
 /// SDK version for User-Agent header.
 const String sdkVersion = '1.0.0';
@@ -17,18 +18,37 @@ const String sdkVersion = '1.0.0';
 /// - Automatic retries with exponential backoff
 /// - Circuit breaker for fault tolerance
 /// - Request timeout handling
+/// - Request signing (HMAC-SHA256) for POST requests
+/// - Key rotation on 401 errors
 class FlagKitHttpClient {
   final FlagKitOptions options;
   final http.Client _client;
   final CircuitBreaker _circuitBreaker;
   final Random _random = Random();
+  final KeyRotationManager _keyRotation;
 
   FlagKitHttpClient(this.options, {http.Client? client, int? localPort})
       : _client = client ?? http.Client(),
         _circuitBreaker = CircuitBreaker(
           threshold: options.circuitBreakerThreshold,
           resetTimeout: options.circuitBreakerResetTimeout,
+        ),
+        _keyRotation = KeyRotationManager(
+          primaryApiKey: options.apiKey,
+          secondaryApiKey: options.secondaryApiKey,
         );
+
+  /// Gets the currently active API key.
+  String get activeApiKey => _keyRotation.activeKey;
+
+  /// Returns true if using the primary API key.
+  bool get isPrimaryKeyActive => _keyRotation.isPrimaryActive;
+
+  /// Returns true if a secondary key is configured.
+  bool get hasSecondaryKey => _keyRotation.hasSecondaryKey;
+
+  /// Resets to use the primary API key.
+  void resetToPrimaryKey() => _keyRotation.resetToPrimary();
 
   /// Gets the effective base URL from options.
   String get _effectiveBaseUrl => options.effectiveBaseUrl;
@@ -72,12 +92,14 @@ class FlagKitHttpClient {
     T Function(Map<String, dynamic>) fromJson,
   ) async {
     final url = Uri.parse('$_effectiveBaseUrl$path');
+    final bodyString = jsonEncode(body);
+    final headers = _getPostHeaders(bodyString);
 
     final response = await _client
         .post(
           url,
-          headers: _headers,
-          body: jsonEncode(body),
+          headers: headers,
+          body: bodyString,
         )
         .timeout(options.timeout, onTimeout: () {
       throw FlagKitException.networkError(
@@ -89,12 +111,14 @@ class FlagKitHttpClient {
 
   Future<void> _doPostVoid(String path, Map<String, dynamic> body) async {
     final url = Uri.parse('$_effectiveBaseUrl$path');
+    final bodyString = jsonEncode(body);
+    final headers = _getPostHeaders(bodyString);
 
     final response = await _client
         .post(
           url,
-          headers: _headers,
-          body: jsonEncode(body),
+          headers: headers,
+          body: bodyString,
         )
         .timeout(options.timeout, onTimeout: () {
       throw FlagKitException.networkError(
@@ -108,7 +132,7 @@ class FlagKitHttpClient {
 
   /// Gets the headers for API requests per spec.
   Map<String, String> get _headers => {
-        'X-API-Key': options.apiKey,
+        'X-API-Key': _keyRotation.activeKey,
         'User-Agent': 'FlagKit-Dart/$sdkVersion',
         'X-FlagKit-SDK-Version': sdkVersion,
         'X-FlagKit-SDK-Language': 'dart',
@@ -116,15 +140,42 @@ class FlagKitHttpClient {
         'Accept': 'application/json',
       };
 
+  /// Gets headers for POST requests, including signature headers if enabled.
+  Map<String, String> _getPostHeaders(String body) {
+    final headers = Map<String, String>.from(_headers);
+
+    if (options.enableRequestSigning) {
+      final signatureHeaders = getSignatureHeaders(body, _keyRotation.activeKey);
+      headers.addAll(signatureHeaders);
+    }
+
+    return headers;
+  }
+
   Future<T> _executeWithRetry<T>(Future<T> Function() action) {
     return _circuitBreaker.execute(() async {
       Object? lastError;
+      var keyRotationAttempted = false;
 
       for (var attempt = 0; attempt <= options.retryAttempts; attempt++) {
         try {
           return await action();
         } catch (e) {
           lastError = e;
+
+          // Check if we should rotate keys on 401 error
+          if (e is FlagKitException &&
+              e.code == ErrorCode.httpUnauthorized &&
+              !keyRotationAttempted &&
+              _keyRotation.hasSecondaryKey) {
+            final rotated = _keyRotation.shouldRotateOnError(401);
+            if (rotated) {
+              keyRotationAttempted = true;
+              // Don't count this as a retry attempt, just retry with new key
+              attempt--;
+              continue;
+            }
+          }
 
           if (!_isRetryable(e) || attempt >= options.retryAttempts) {
             rethrow;

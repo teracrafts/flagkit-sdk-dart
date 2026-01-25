@@ -1,5 +1,6 @@
 import 'error/error_code.dart';
 import 'error/flagkit_exception.dart';
+import 'utils/security.dart';
 
 /// Configuration options for the FlagKit SDK.
 ///
@@ -86,6 +87,27 @@ class FlagKitOptions {
   /// Whether to operate in offline mode.
   final bool offline;
 
+  /// Secondary API key for automatic failover on 401 errors.
+  final String? secondaryApiKey;
+
+  /// Whether to throw SecurityException on PII detection instead of warning.
+  ///
+  /// When enabled, PII detected in context data that is not marked as
+  /// a privateAttribute will throw a SecurityException.
+  final bool strictPIIMode;
+
+  /// Whether to enable request signing for POST requests.
+  ///
+  /// When enabled, all POST requests will include HMAC-SHA256 signatures
+  /// in the X-Signature, X-Timestamp, and X-Key-Id headers.
+  final bool enableRequestSigning;
+
+  /// Whether to enable cache encryption.
+  ///
+  /// When enabled, cached flag data is encrypted using AES-GCM with
+  /// a key derived from the API key via PBKDF2.
+  final bool enableCacheEncryption;
+
   /// Callback when SDK is ready.
   final void Function()? onReady;
 
@@ -120,6 +142,10 @@ class FlagKitOptions {
     this.bootstrap,
     this.localPort,
     this.offline = false,
+    this.secondaryApiKey,
+    this.strictPIIMode = false,
+    this.enableRequestSigning = false,
+    this.enableCacheEncryption = false,
     this.onReady,
     this.onError,
     this.onUpdate,
@@ -128,6 +154,7 @@ class FlagKitOptions {
   /// Validates the configuration options.
   ///
   /// Throws [FlagKitException] if configuration is invalid.
+  /// Throws [SecurityException] if security constraints are violated.
   void validate() {
     if (apiKey.isEmpty) {
       throw FlagKitException.configError(
@@ -142,6 +169,16 @@ class FlagKitOptions {
         ErrorCode.configInvalidApiKey,
         'Invalid API key format. Must start with sdk_, srv_, or cli_',
       );
+    }
+
+    // Validate secondary API key format if provided
+    if (secondaryApiKey != null && secondaryApiKey!.isNotEmpty) {
+      if (!validPrefixes.any((p) => secondaryApiKey!.startsWith(p))) {
+        throw FlagKitException.configError(
+          ErrorCode.configInvalidApiKey,
+          'Invalid secondary API key format. Must start with sdk_, srv_, or cli_',
+        );
+      }
     }
 
     if (pollingInterval.inMilliseconds <= 0) {
@@ -178,6 +215,9 @@ class FlagKitOptions {
         'Circuit breaker threshold must be positive',
       );
     }
+
+    // Security validation: localPort in production
+    validateLocalPortSecurity(localPort);
   }
 
   /// Creates a copy of this options with the given fields replaced.
@@ -199,6 +239,10 @@ class FlagKitOptions {
     Map<String, dynamic>? bootstrap,
     int? localPort,
     bool? offline,
+    String? secondaryApiKey,
+    bool? strictPIIMode,
+    bool? enableRequestSigning,
+    bool? enableCacheEncryption,
     void Function()? onReady,
     void Function(Object error)? onError,
     void Function(List<dynamic> flags)? onUpdate,
@@ -223,6 +267,11 @@ class FlagKitOptions {
       bootstrap: bootstrap ?? this.bootstrap,
       localPort: localPort ?? this.localPort,
       offline: offline ?? this.offline,
+      secondaryApiKey: secondaryApiKey ?? this.secondaryApiKey,
+      strictPIIMode: strictPIIMode ?? this.strictPIIMode,
+      enableRequestSigning: enableRequestSigning ?? this.enableRequestSigning,
+      enableCacheEncryption:
+          enableCacheEncryption ?? this.enableCacheEncryption,
       onReady: onReady ?? this.onReady,
       onError: onError ?? this.onError,
       onUpdate: onUpdate ?? this.onUpdate,
@@ -256,6 +305,10 @@ class FlagKitOptionsBuilder {
   Map<String, dynamic>? _bootstrap;
   int? _localPort;
   bool _offline = false;
+  String? _secondaryApiKey;
+  bool _strictPIIMode = false;
+  bool _enableRequestSigning = false;
+  bool _enableCacheEncryption = false;
   void Function()? _onReady;
   void Function(Object error)? _onError;
   void Function(List<dynamic> flags)? _onUpdate;
@@ -359,6 +412,33 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  /// Sets the secondary API key for automatic failover.
+  FlagKitOptionsBuilder secondaryApiKey(String key) {
+    _secondaryApiKey = key;
+    return this;
+  }
+
+  /// Sets strict PII mode.
+  ///
+  /// When enabled, throws SecurityException on PII detection
+  /// instead of logging a warning.
+  FlagKitOptionsBuilder strictPIIMode(bool enabled) {
+    _strictPIIMode = enabled;
+    return this;
+  }
+
+  /// Enables request signing for POST requests.
+  FlagKitOptionsBuilder enableRequestSigning(bool enabled) {
+    _enableRequestSigning = enabled;
+    return this;
+  }
+
+  /// Enables cache encryption.
+  FlagKitOptionsBuilder enableCacheEncryption(bool enabled) {
+    _enableCacheEncryption = enabled;
+    return this;
+  }
+
   /// Sets the callback for when SDK is ready.
   FlagKitOptionsBuilder onReady(void Function() callback) {
     _onReady = callback;
@@ -397,6 +477,10 @@ class FlagKitOptionsBuilder {
       bootstrap: _bootstrap,
       localPort: _localPort,
       offline: _offline,
+      secondaryApiKey: _secondaryApiKey,
+      strictPIIMode: _strictPIIMode,
+      enableRequestSigning: _enableRequestSigning,
+      enableCacheEncryption: _enableCacheEncryption,
       onReady: _onReady,
       onError: _onError,
       onUpdate: _onUpdate,
