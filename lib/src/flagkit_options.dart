@@ -36,6 +36,12 @@ class FlagKitOptions {
   /// Default circuit breaker reset timeout (30 seconds per spec).
   static const defaultCircuitBreakerResetTimeout = Duration(seconds: 30);
 
+  /// Default maximum persisted events.
+  static const defaultMaxPersistedEvents = 10000;
+
+  /// Default persistence flush interval (1 second).
+  static const defaultPersistenceFlushInterval = Duration(milliseconds: 1000);
+
   /// The API key for authentication.
   final String apiKey;
 
@@ -108,6 +114,27 @@ class FlagKitOptions {
   /// a key derived from the API key via PBKDF2.
   final bool enableCacheEncryption;
 
+  /// Whether to enable crash-resilient event persistence.
+  ///
+  /// When enabled, events are persisted to disk before being queued for sending,
+  /// ensuring events are not lost in case of crashes or unexpected termination.
+  final bool persistEvents;
+
+  /// Directory path for event storage files.
+  ///
+  /// If not specified, uses the OS temp directory.
+  final String? eventStoragePath;
+
+  /// Maximum number of events to persist.
+  ///
+  /// When this limit is reached, oldest pending events will be dropped.
+  final int maxPersistedEvents;
+
+  /// Interval between disk flushes for persisted events.
+  ///
+  /// Events are buffered and flushed to disk at this interval.
+  final Duration persistenceFlushInterval;
+
   /// Callback when SDK is ready.
   final void Function()? onReady;
 
@@ -146,6 +173,10 @@ class FlagKitOptions {
     this.strictPIIMode = false,
     this.enableRequestSigning = false,
     this.enableCacheEncryption = false,
+    this.persistEvents = false,
+    this.eventStoragePath,
+    this.maxPersistedEvents = defaultMaxPersistedEvents,
+    this.persistenceFlushInterval = defaultPersistenceFlushInterval,
     this.onReady,
     this.onError,
     this.onUpdate,
@@ -243,6 +274,10 @@ class FlagKitOptions {
     bool? strictPIIMode,
     bool? enableRequestSigning,
     bool? enableCacheEncryption,
+    bool? persistEvents,
+    String? eventStoragePath,
+    int? maxPersistedEvents,
+    Duration? persistenceFlushInterval,
     void Function()? onReady,
     void Function(Object error)? onError,
     void Function(List<dynamic> flags)? onUpdate,
@@ -272,6 +307,11 @@ class FlagKitOptions {
       enableRequestSigning: enableRequestSigning ?? this.enableRequestSigning,
       enableCacheEncryption:
           enableCacheEncryption ?? this.enableCacheEncryption,
+      persistEvents: persistEvents ?? this.persistEvents,
+      eventStoragePath: eventStoragePath ?? this.eventStoragePath,
+      maxPersistedEvents: maxPersistedEvents ?? this.maxPersistedEvents,
+      persistenceFlushInterval:
+          persistenceFlushInterval ?? this.persistenceFlushInterval,
       onReady: onReady ?? this.onReady,
       onError: onError ?? this.onError,
       onUpdate: onUpdate ?? this.onUpdate,
@@ -309,6 +349,10 @@ class FlagKitOptionsBuilder {
   bool _strictPIIMode = false;
   bool _enableRequestSigning = false;
   bool _enableCacheEncryption = false;
+  bool _persistEvents = false;
+  String? _eventStoragePath;
+  int _maxPersistedEvents = FlagKitOptions.defaultMaxPersistedEvents;
+  Duration _persistenceFlushInterval = FlagKitOptions.defaultPersistenceFlushInterval;
   void Function()? _onReady;
   void Function(Object error)? _onError;
   void Function(List<dynamic> flags)? _onUpdate;
@@ -439,6 +483,30 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  /// Enables crash-resilient event persistence.
+  FlagKitOptionsBuilder persistEvents(bool enabled) {
+    _persistEvents = enabled;
+    return this;
+  }
+
+  /// Sets the event storage path.
+  FlagKitOptionsBuilder eventStoragePath(String path) {
+    _eventStoragePath = path;
+    return this;
+  }
+
+  /// Sets the maximum number of persisted events.
+  FlagKitOptionsBuilder maxPersistedEvents(int max) {
+    _maxPersistedEvents = max;
+    return this;
+  }
+
+  /// Sets the persistence flush interval.
+  FlagKitOptionsBuilder persistenceFlushInterval(Duration interval) {
+    _persistenceFlushInterval = interval;
+    return this;
+  }
+
   /// Sets the callback for when SDK is ready.
   FlagKitOptionsBuilder onReady(void Function() callback) {
     _onReady = callback;
@@ -481,6 +549,10 @@ class FlagKitOptionsBuilder {
       strictPIIMode: _strictPIIMode,
       enableRequestSigning: _enableRequestSigning,
       enableCacheEncryption: _enableCacheEncryption,
+      persistEvents: _persistEvents,
+      eventStoragePath: _eventStoragePath,
+      maxPersistedEvents: _maxPersistedEvents,
+      persistenceFlushInterval: _persistenceFlushInterval,
       onReady: _onReady,
       onError: _onError,
       onUpdate: _onUpdate,
