@@ -2,6 +2,38 @@ import 'error/error_code.dart';
 import 'error/flagkit_exception.dart';
 import 'utils/security.dart';
 
+/// Configuration for evaluation timing jitter to protect against cache timing attacks.
+///
+/// When enabled, adds a random delay before each flag evaluation to make
+/// timing-based attacks more difficult.
+class EvaluationJitterConfig {
+  /// Whether jitter is enabled.
+  final bool enabled;
+
+  /// Minimum jitter delay in milliseconds.
+  final int minMs;
+
+  /// Maximum jitter delay in milliseconds.
+  final int maxMs;
+
+  /// Creates a new evaluation jitter configuration.
+  ///
+  /// [enabled] defaults to false for backward compatibility.
+  /// [minMs] defaults to 5 milliseconds.
+  /// [maxMs] defaults to 15 milliseconds.
+  const EvaluationJitterConfig({
+    this.enabled = false,
+    this.minMs = 5,
+    this.maxMs = 15,
+  });
+
+  /// Default configuration with jitter disabled.
+  static const disabled = EvaluationJitterConfig();
+
+  /// Default configuration with jitter enabled.
+  static const defaultEnabled = EvaluationJitterConfig(enabled: true);
+}
+
 /// Configuration options for the FlagKit SDK.
 ///
 /// Use [FlagKitOptions.builder] for a fluent construction API.
@@ -135,6 +167,12 @@ class FlagKitOptions {
   /// Events are buffered and flushed to disk at this interval.
   final Duration persistenceFlushInterval;
 
+  /// Configuration for evaluation timing jitter.
+  ///
+  /// When enabled, adds random delay to flag evaluations to protect
+  /// against cache timing attacks.
+  final EvaluationJitterConfig evaluationJitter;
+
   /// Callback when SDK is ready.
   final void Function()? onReady;
 
@@ -177,6 +215,7 @@ class FlagKitOptions {
     this.eventStoragePath,
     this.maxPersistedEvents = defaultMaxPersistedEvents,
     this.persistenceFlushInterval = defaultPersistenceFlushInterval,
+    this.evaluationJitter = const EvaluationJitterConfig(),
     this.onReady,
     this.onError,
     this.onUpdate,
@@ -278,6 +317,7 @@ class FlagKitOptions {
     String? eventStoragePath,
     int? maxPersistedEvents,
     Duration? persistenceFlushInterval,
+    EvaluationJitterConfig? evaluationJitter,
     void Function()? onReady,
     void Function(Object error)? onError,
     void Function(List<dynamic> flags)? onUpdate,
@@ -312,6 +352,7 @@ class FlagKitOptions {
       maxPersistedEvents: maxPersistedEvents ?? this.maxPersistedEvents,
       persistenceFlushInterval:
           persistenceFlushInterval ?? this.persistenceFlushInterval,
+      evaluationJitter: evaluationJitter ?? this.evaluationJitter,
       onReady: onReady ?? this.onReady,
       onError: onError ?? this.onError,
       onUpdate: onUpdate ?? this.onUpdate,
@@ -353,6 +394,7 @@ class FlagKitOptionsBuilder {
   String? _eventStoragePath;
   int _maxPersistedEvents = FlagKitOptions.defaultMaxPersistedEvents;
   Duration _persistenceFlushInterval = FlagKitOptions.defaultPersistenceFlushInterval;
+  EvaluationJitterConfig _evaluationJitter = const EvaluationJitterConfig();
   void Function()? _onReady;
   void Function(Object error)? _onError;
   void Function(List<dynamic> flags)? _onUpdate;
@@ -507,6 +549,15 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  /// Sets the evaluation jitter configuration.
+  ///
+  /// Use this to protect against cache timing attacks by adding
+  /// random delay to flag evaluations.
+  FlagKitOptionsBuilder evaluationJitter(EvaluationJitterConfig config) {
+    _evaluationJitter = config;
+    return this;
+  }
+
   /// Sets the callback for when SDK is ready.
   FlagKitOptionsBuilder onReady(void Function() callback) {
     _onReady = callback;
@@ -553,6 +604,7 @@ class FlagKitOptionsBuilder {
       eventStoragePath: _eventStoragePath,
       maxPersistedEvents: _maxPersistedEvents,
       persistenceFlushInterval: _persistenceFlushInterval,
+      evaluationJitter: _evaluationJitter,
       onReady: _onReady,
       onError: _onError,
       onUpdate: _onUpdate,

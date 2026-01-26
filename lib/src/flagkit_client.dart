@@ -296,6 +296,9 @@ class FlagKitClient {
       [EvaluationContext? context]) async {
     _ensureNotClosed();
 
+    // Apply jitter at the start of evaluation if enabled
+    await _applyEvaluationJitter();
+
     final resolvedContext = _contextManager.resolveContextForServer(context);
 
     try {
@@ -686,6 +689,31 @@ class FlagKitClient {
         'SDK has been closed',
       );
     }
+  }
+
+  /// Random number generator for jitter calculations.
+  final Random _jitterRandom = Random();
+
+  /// Applies evaluation jitter delay if enabled.
+  ///
+  /// This helps protect against cache timing attacks by adding a random
+  /// delay before flag evaluation.
+  Future<void> _applyEvaluationJitter() async {
+    final jitterConfig = options.evaluationJitter;
+    if (!jitterConfig.enabled) {
+      return;
+    }
+
+    final jitterMs = _jitterRandom.nextInt(jitterConfig.maxMs - jitterConfig.minMs + 1) + jitterConfig.minMs;
+    await Future.delayed(Duration(milliseconds: jitterMs));
+  }
+
+  /// Internal evaluation method with jitter support.
+  ///
+  /// Applies jitter delay at the start if enabled, then performs evaluation.
+  Future<EvaluationResult> _evaluateWithJitter(String flagKey, [EvaluationContext? context]) async {
+    await _applyEvaluationJitter();
+    return evaluate(flagKey, context);
   }
 
   Future<void> _initializeEventQueue() async {
