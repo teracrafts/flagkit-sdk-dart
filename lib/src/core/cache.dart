@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import '../types/flag_state.dart';
 import '../utils/security.dart';
 
