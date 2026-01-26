@@ -592,6 +592,81 @@ class FlagKitClient {
     return result.jsonValue ?? defaultValue;
   }
 
+  // =========================================================================
+  // Async typed value methods with jitter protection
+  // =========================================================================
+
+  /// Gets a boolean flag value asynchronously with jitter protection.
+  ///
+  /// Applies evaluation jitter (if enabled) before returning the cached value.
+  /// This helps protect against cache timing attacks.
+  Future<bool> getBooleanValueAsync(String flagKey, bool defaultValue,
+      [EvaluationContext? context]) async {
+    final result = await _evaluateWithJitter(flagKey, context);
+    if (result.reason == EvaluationReason.flagNotFound ||
+        result.reason == EvaluationReason.disabled) {
+      return defaultValue;
+    }
+    return result.boolValue;
+  }
+
+  /// Gets a string flag value asynchronously with jitter protection.
+  ///
+  /// Applies evaluation jitter (if enabled) before returning the cached value.
+  /// This helps protect against cache timing attacks.
+  Future<String> getStringValueAsync(String flagKey, String defaultValue,
+      [EvaluationContext? context]) async {
+    final result = await _evaluateWithJitter(flagKey, context);
+    if (result.reason == EvaluationReason.flagNotFound ||
+        result.reason == EvaluationReason.disabled) {
+      return defaultValue;
+    }
+    return result.stringValue ?? defaultValue;
+  }
+
+  /// Gets a number flag value asynchronously with jitter protection.
+  ///
+  /// Applies evaluation jitter (if enabled) before returning the cached value.
+  /// This helps protect against cache timing attacks.
+  Future<double> getNumberValueAsync(String flagKey, double defaultValue,
+      [EvaluationContext? context]) async {
+    final result = await _evaluateWithJitter(flagKey, context);
+    if (result.reason == EvaluationReason.flagNotFound ||
+        result.reason == EvaluationReason.disabled) {
+      return defaultValue;
+    }
+    return result.numberValue;
+  }
+
+  /// Gets an integer flag value asynchronously with jitter protection.
+  ///
+  /// Applies evaluation jitter (if enabled) before returning the cached value.
+  /// This helps protect against cache timing attacks.
+  Future<int> getIntValueAsync(String flagKey, int defaultValue,
+      [EvaluationContext? context]) async {
+    final result = await _evaluateWithJitter(flagKey, context);
+    if (result.reason == EvaluationReason.flagNotFound ||
+        result.reason == EvaluationReason.disabled) {
+      return defaultValue;
+    }
+    return result.intValue;
+  }
+
+  /// Gets a JSON flag value asynchronously with jitter protection.
+  ///
+  /// Applies evaluation jitter (if enabled) before returning the cached value.
+  /// This helps protect against cache timing attacks.
+  Future<Map<String, dynamic>?> getJsonValueAsync(
+      String flagKey, Map<String, dynamic>? defaultValue,
+      [EvaluationContext? context]) async {
+    final result = await _evaluateWithJitter(flagKey, context);
+    if (result.reason == EvaluationReason.flagNotFound ||
+        result.reason == EvaluationReason.disabled) {
+      return defaultValue;
+    }
+    return result.jsonValue ?? defaultValue;
+  }
+
   /// Returns true if the flag exists in the cache.
   bool hasFlag(String flagKey) {
     return _cache.has(flagKey);
