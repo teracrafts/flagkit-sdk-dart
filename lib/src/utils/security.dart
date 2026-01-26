@@ -7,7 +7,6 @@ import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:pointycastle/pointycastle.dart' as pc;
 
-import '../error/error_code.dart';
 import '../error/flagkit_exception.dart';
 import '../flagkit_options.dart';
 
@@ -898,19 +897,15 @@ BootstrapVerificationResult verifyBootstrapSignature(
 ///
 /// Returns true if the two strings are equal.
 bool _constantTimeEquals(String a, String b) {
-  if (a.length != b.length) {
-    // Still perform comparison to maintain constant time
-    var result = 0;
-    for (var i = 0; i < a.length; i++) {
-      result |= a.codeUnitAt(i) ^ (i < b.length ? b.codeUnitAt(i) : 0);
-    }
-    return false;
+  // Always compare the full length of a to maintain constant time
+  // even when lengths differ (prevents length-based timing attacks)
+  var result = a.length ^ b.length;
+  final minLength = a.length < b.length ? a.length : b.length;
+
+  for (var i = 0; i < a.length; i++) {
+    result |= a.codeUnitAt(i) ^ (i < minLength ? b.codeUnitAt(i) : 0);
   }
 
-  var result = 0;
-  for (var i = 0; i < a.length; i++) {
-    result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
-  }
   return result == 0;
 }
 
