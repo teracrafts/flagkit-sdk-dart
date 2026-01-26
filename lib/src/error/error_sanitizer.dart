@@ -76,7 +76,7 @@ class ErrorSanitizer {
     // Unix file paths (must have at least one directory)
     (RegExp(r'/(?:[\w.-]+/)+[\w.-]+'), '[PATH]'),
     // Windows file paths
-    (RegExp(r'[A-Za-z]:\\(?:[\w.-]+\\)+[\w.-]*'), '[PATH]'),
+    (RegExp(r'[A-Za-z]:\\(?:[\w\s.-]+\\)+[\w.-]*'), '[PATH]'),
     // IPv4 addresses
     (RegExp(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'), '[IP]'),
     // SDK API keys
@@ -86,7 +86,7 @@ class ErrorSanitizer {
     // CLI API keys
     (RegExp(r'cli_[a-zA-Z0-9_-]{8,}'), 'cli_[REDACTED]'),
     // Email addresses
-    (RegExp(r'[\w.-]+@[\w.-]+\.\w+'), '[EMAIL]'),
+    (RegExp(r'[\w.+-]+@[\w.-]+\.\w+'), '[EMAIL]'),
     // Database connection strings
     (
       RegExp(r'(?:postgres|mysql|mongodb|redis)://[^\s]+', caseSensitive: false),
