@@ -1,4 +1,5 @@
 import 'error/error_code.dart';
+import 'error/error_sanitizer.dart';
 import 'error/flagkit_exception.dart';
 import 'utils/security.dart';
 
@@ -280,6 +281,12 @@ class FlagKitOptions {
   /// against cache timing attacks.
   final EvaluationJitterConfig evaluationJitter;
 
+  /// Configuration for error message sanitization.
+  ///
+  /// When enabled, sensitive information is removed from error messages
+  /// to prevent information leakage.
+  final ErrorSanitizationConfig errorSanitization;
+
   /// Callback when SDK is ready.
   final void Function()? onReady;
 
@@ -325,6 +332,7 @@ class FlagKitOptions {
     this.maxPersistedEvents = defaultMaxPersistedEvents,
     this.persistenceFlushInterval = defaultPersistenceFlushInterval,
     this.evaluationJitter = const EvaluationJitterConfig(),
+    this.errorSanitization = const ErrorSanitizationConfig(),
     this.onReady,
     this.onError,
     this.onUpdate,
@@ -429,6 +437,7 @@ class FlagKitOptions {
     int? maxPersistedEvents,
     Duration? persistenceFlushInterval,
     EvaluationJitterConfig? evaluationJitter,
+    ErrorSanitizationConfig? errorSanitization,
     void Function()? onReady,
     void Function(Object error)? onError,
     void Function(List<dynamic> flags)? onUpdate,
@@ -467,6 +476,7 @@ class FlagKitOptions {
       persistenceFlushInterval:
           persistenceFlushInterval ?? this.persistenceFlushInterval,
       evaluationJitter: evaluationJitter ?? this.evaluationJitter,
+      errorSanitization: errorSanitization ?? this.errorSanitization,
       onReady: onReady ?? this.onReady,
       onError: onError ?? this.onError,
       onUpdate: onUpdate ?? this.onUpdate,
@@ -512,6 +522,7 @@ class FlagKitOptionsBuilder {
   int _maxPersistedEvents = FlagKitOptions.defaultMaxPersistedEvents;
   Duration _persistenceFlushInterval = FlagKitOptions.defaultPersistenceFlushInterval;
   EvaluationJitterConfig _evaluationJitter = const EvaluationJitterConfig();
+  ErrorSanitizationConfig _errorSanitization = const ErrorSanitizationConfig();
   void Function()? _onReady;
   void Function(Object error)? _onError;
   void Function(List<dynamic> flags)? _onUpdate;
@@ -687,6 +698,15 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  /// Sets the error sanitization configuration.
+  ///
+  /// Use this to configure how error messages are sanitized
+  /// to prevent information leakage.
+  FlagKitOptionsBuilder errorSanitization(ErrorSanitizationConfig config) {
+    _errorSanitization = config;
+    return this;
+  }
+
   /// Sets the callback for when SDK is ready.
   FlagKitOptionsBuilder onReady(void Function() callback) {
     _onReady = callback;
@@ -736,6 +756,7 @@ class FlagKitOptionsBuilder {
       maxPersistedEvents: _maxPersistedEvents,
       persistenceFlushInterval: _persistenceFlushInterval,
       evaluationJitter: _evaluationJitter,
+      errorSanitization: _errorSanitization,
       onReady: _onReady,
       onError: _onError,
       onUpdate: _onUpdate,

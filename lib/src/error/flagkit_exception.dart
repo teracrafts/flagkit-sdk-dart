@@ -1,12 +1,47 @@
 import 'error_code.dart';
+import 'error_sanitizer.dart';
+
+/// Global error sanitizer configuration.
+///
+/// This can be set by the SDK to apply error sanitization globally.
+ErrorSanitizationConfig _globalErrorSanitizationConfig =
+    const ErrorSanitizationConfig();
+
+/// Sets the global error sanitization configuration.
+///
+/// This is typically called during SDK initialization.
+void setGlobalErrorSanitizationConfig(ErrorSanitizationConfig config) {
+  _globalErrorSanitizationConfig = config;
+}
+
+/// Gets the current global error sanitization configuration.
+ErrorSanitizationConfig getGlobalErrorSanitizationConfig() {
+  return _globalErrorSanitizationConfig;
+}
 
 /// Exception for FlagKit SDK errors.
 class FlagKitException implements Exception {
   final ErrorCode code;
-  final String message;
+  final String _rawMessage;
   final Object? cause;
 
-  FlagKitException(this.code, this.message, [this.cause]);
+  /// The original unsanitized message (only available if preserveOriginal is enabled).
+  final String? originalMessage;
+
+  FlagKitException(this.code, String message, [this.cause])
+      : _rawMessage = message,
+        originalMessage = _globalErrorSanitizationConfig.preserveOriginal
+            ? message
+            : null;
+
+  /// Gets the sanitized error message.
+  String get message {
+    if (!_globalErrorSanitizationConfig.enabled) {
+      return _rawMessage;
+    }
+    return ErrorSanitizer(_globalErrorSanitizationConfig)
+        .sanitizeMessage(_rawMessage);
+  }
 
   @override
   String toString() => '[${code.code}] $message';

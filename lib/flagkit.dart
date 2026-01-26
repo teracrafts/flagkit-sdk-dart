@@ -11,6 +11,7 @@ export 'src/types/evaluation_result.dart';
 
 // Error
 export 'src/error/error_code.dart';
+export 'src/error/error_sanitizer.dart';
 export 'src/error/flagkit_exception.dart';
 
 // HTTP
