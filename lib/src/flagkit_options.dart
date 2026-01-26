@@ -2,6 +2,100 @@ import 'error/error_code.dart';
 import 'error/flagkit_exception.dart';
 import 'utils/security.dart';
 
+/// Configuration for bootstrap flag values with optional HMAC signature verification.
+///
+/// Use this to provide pre-loaded flag values that can be cryptographically
+/// verified to ensure they haven't been tampered with.
+class BootstrapConfig {
+  /// The flag key-value pairs for bootstrap data.
+  final Map<String, dynamic> flags;
+
+  /// Optional HMAC-SHA256 signature of the flags.
+  ///
+  /// When provided, the SDK will verify this signature against the flags
+  /// using the API key as the HMAC secret.
+  final String? signature;
+
+  /// Optional Unix timestamp (milliseconds) when the bootstrap was created.
+  ///
+  /// Used for age verification to ensure bootstrap data isn't stale.
+  final int? timestamp;
+
+  /// Creates a new bootstrap configuration.
+  ///
+  /// [flags] is required and contains the flag key-value pairs.
+  /// [signature] is optional HMAC-SHA256 signature for verification.
+  /// [timestamp] is optional creation timestamp for age verification.
+  const BootstrapConfig({
+    required this.flags,
+    this.signature,
+    this.timestamp,
+  });
+
+  /// Creates a BootstrapConfig from JSON.
+  factory BootstrapConfig.fromJson(Map<String, dynamic> json) {
+    return BootstrapConfig(
+      flags: Map<String, dynamic>.from(json['flags'] as Map? ?? {}),
+      signature: json['signature'] as String?,
+      timestamp: json['timestamp'] as int?,
+    );
+  }
+
+  /// Converts this config to JSON.
+  Map<String, dynamic> toJson() {
+    return {
+      'flags': flags,
+      if (signature != null) 'signature': signature,
+      if (timestamp != null) 'timestamp': timestamp,
+    };
+  }
+}
+
+/// Configuration for bootstrap signature verification.
+///
+/// Controls how the SDK handles verification of bootstrap flag values.
+class BootstrapVerificationConfig {
+  /// Whether verification is enabled.
+  ///
+  /// When false, signatures are ignored even if present.
+  final bool enabled;
+
+  /// Maximum age of bootstrap data in milliseconds.
+  ///
+  /// Bootstrap data older than this will be considered expired.
+  /// Defaults to 86400000 (24 hours).
+  final int maxAge;
+
+  /// Behavior when verification fails.
+  ///
+  /// - "warn": Log a warning but use the bootstrap data anyway
+  /// - "error": Throw a SecurityException and reject the data
+  /// - "ignore": Silently use the bootstrap data without warnings
+  ///
+  /// Defaults to "warn".
+  final String onFailure;
+
+  /// Creates a new bootstrap verification configuration.
+  ///
+  /// [enabled] defaults to true.
+  /// [maxAge] defaults to 86400000 (24 hours in milliseconds).
+  /// [onFailure] defaults to "warn".
+  const BootstrapVerificationConfig({
+    this.enabled = true,
+    this.maxAge = 86400000,
+    this.onFailure = 'warn',
+  });
+
+  /// Default configuration with verification enabled.
+  static const defaultConfig = BootstrapVerificationConfig();
+
+  /// Configuration with verification disabled.
+  static const disabled = BootstrapVerificationConfig(enabled: false);
+
+  /// Strict configuration that throws errors on verification failure.
+  static const strict = BootstrapVerificationConfig(onFailure: 'error');
+}
+
 /// Configuration for evaluation timing jitter to protect against cache timing attacks.
 ///
 /// When enabled, adds a random delay before each flag evaluation to make
@@ -116,8 +210,21 @@ class FlagKitOptions {
   /// Duration before circuit breaker attempts recovery.
   final Duration circuitBreakerResetTimeout;
 
-  /// Bootstrap data for offline initialization.
+  /// Bootstrap data for offline initialization (legacy format).
+  ///
+  /// For verified bootstrap data, use [bootstrapConfig] instead.
   final Map<String, dynamic>? bootstrap;
+
+  /// Bootstrap configuration with optional signature verification.
+  ///
+  /// When provided, takes precedence over [bootstrap].
+  /// Use this for cryptographically verified bootstrap data.
+  final BootstrapConfig? bootstrapConfig;
+
+  /// Configuration for bootstrap signature verification.
+  ///
+  /// Controls how the SDK handles verification of bootstrap data.
+  final BootstrapVerificationConfig bootstrapVerification;
 
   /// Local development port (overrides baseUrl to localhost).
   final int? localPort;
@@ -205,6 +312,8 @@ class FlagKitOptions {
     this.circuitBreakerThreshold = defaultCircuitBreakerThreshold,
     this.circuitBreakerResetTimeout = defaultCircuitBreakerResetTimeout,
     this.bootstrap,
+    this.bootstrapConfig,
+    this.bootstrapVerification = const BootstrapVerificationConfig(),
     this.localPort,
     this.offline = false,
     this.secondaryApiKey,
@@ -307,6 +416,8 @@ class FlagKitOptions {
     int? circuitBreakerThreshold,
     Duration? circuitBreakerResetTimeout,
     Map<String, dynamic>? bootstrap,
+    BootstrapConfig? bootstrapConfig,
+    BootstrapVerificationConfig? bootstrapVerification,
     int? localPort,
     bool? offline,
     String? secondaryApiKey,
@@ -340,6 +451,9 @@ class FlagKitOptions {
       circuitBreakerResetTimeout:
           circuitBreakerResetTimeout ?? this.circuitBreakerResetTimeout,
       bootstrap: bootstrap ?? this.bootstrap,
+      bootstrapConfig: bootstrapConfig ?? this.bootstrapConfig,
+      bootstrapVerification:
+          bootstrapVerification ?? this.bootstrapVerification,
       localPort: localPort ?? this.localPort,
       offline: offline ?? this.offline,
       secondaryApiKey: secondaryApiKey ?? this.secondaryApiKey,
@@ -384,6 +498,9 @@ class FlagKitOptionsBuilder {
   Duration _circuitBreakerResetTimeout =
       FlagKitOptions.defaultCircuitBreakerResetTimeout;
   Map<String, dynamic>? _bootstrap;
+  BootstrapConfig? _bootstrapConfig;
+  BootstrapVerificationConfig _bootstrapVerification =
+      const BootstrapVerificationConfig();
   int? _localPort;
   bool _offline = false;
   String? _secondaryApiKey;
@@ -480,9 +597,21 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
-  /// Sets bootstrap data for offline initialization.
+  /// Sets bootstrap data for offline initialization (legacy format).
   FlagKitOptionsBuilder bootstrap(Map<String, dynamic> data) {
     _bootstrap = data;
+    return this;
+  }
+
+  /// Sets bootstrap configuration with optional signature verification.
+  FlagKitOptionsBuilder bootstrapConfig(BootstrapConfig config) {
+    _bootstrapConfig = config;
+    return this;
+  }
+
+  /// Sets bootstrap verification configuration.
+  FlagKitOptionsBuilder bootstrapVerification(BootstrapVerificationConfig config) {
+    _bootstrapVerification = config;
     return this;
   }
 
@@ -594,6 +723,8 @@ class FlagKitOptionsBuilder {
       circuitBreakerThreshold: _circuitBreakerThreshold,
       circuitBreakerResetTimeout: _circuitBreakerResetTimeout,
       bootstrap: _bootstrap,
+      bootstrapConfig: _bootstrapConfig,
+      bootstrapVerification: _bootstrapVerification,
       localPort: _localPort,
       offline: _offline,
       secondaryApiKey: _secondaryApiKey,

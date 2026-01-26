@@ -72,6 +72,7 @@ class FlagKitException implements Exception {
         ErrorCode.securityEncryptionFailed,
         ErrorCode.securityDecryptionFailed,
         ErrorCode.securityKeyRotationFailed,
+        ErrorCode.securityBootstrapVerificationFailed,
       }.contains(code);
 
   static FlagKitException configError(ErrorCode code, String message) {
@@ -149,6 +150,14 @@ class SecurityException extends FlagKitException {
       ErrorCode.securityDecryptionFailed,
       'Decryption failed: $message',
       cause,
+    );
+  }
+
+  /// Creates a security exception for bootstrap verification failures.
+  factory SecurityException.bootstrapVerificationFailed(String message) {
+    return SecurityException(
+      ErrorCode.securityBootstrapVerificationFailed,
+      'Bootstrap verification failed: $message',
     );
   }
 }

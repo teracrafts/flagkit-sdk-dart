@@ -17,6 +17,7 @@ import 'types/flag_state.dart';
 import 'types/flag_value.dart';
 import 'flagkit_options.dart';
 import 'http/http_client.dart';
+import 'utils/security.dart';
 
 /// Main FlagKit client for feature flag evaluation.
 ///
@@ -75,8 +76,56 @@ class FlagKitClient {
     options.validate();
 
     // Load bootstrap data
-    if (options.bootstrap != null) {
-      for (final entry in options.bootstrap!.entries) {
+    _loadBootstrap();
+  }
+
+  /// Loads bootstrap data into the cache.
+  ///
+  /// Supports both legacy [options.bootstrap] format and the new
+  /// [options.bootstrapConfig] format with optional signature verification.
+  void _loadBootstrap() {
+    // Determine which bootstrap source to use (bootstrapConfig takes precedence)
+    Map<String, dynamic>? flags;
+
+    if (options.bootstrapConfig != null) {
+      // Use new BootstrapConfig format with optional verification
+      final bootstrap = options.bootstrapConfig!;
+      final verificationConfig = options.bootstrapVerification;
+
+      // Verify signature if present and verification is enabled
+      if (bootstrap.signature != null && verificationConfig.enabled) {
+        final result = verifyBootstrapSignature(
+          bootstrap,
+          options.apiKey,
+          verificationConfig,
+        );
+
+        if (!result.valid) {
+          handleBootstrapVerificationFailure(
+            result,
+            verificationConfig,
+            onWarn: (message) {
+              // Call error callback if configured
+              options.onError?.call(SecurityException.bootstrapVerificationFailed(
+                result.error ?? 'Unknown error',
+              ));
+            },
+          );
+
+          // If onFailure is 'error', exception was thrown above
+          // For 'warn' and 'ignore', we still load the bootstrap data
+        }
+      }
+
+      flags = bootstrap.flags;
+    } else if (options.bootstrap != null) {
+      // Use legacy format (raw Map)
+      flags = options.bootstrap;
+    }
+
+    // Load flags into cache
+    if (flags != null) {
+      for (final entry in flags.entries) {
         final flag = FlagState(
           key: entry.key,
           value: FlagValue.from(entry.value),

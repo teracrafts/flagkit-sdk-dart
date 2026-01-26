@@ -83,7 +83,8 @@ enum ErrorCode {
   securityPIIDetected('SECURITY_PII_DETECTED'),
   securityEncryptionFailed('SECURITY_ENCRYPTION_FAILED'),
   securityDecryptionFailed('SECURITY_DECRYPTION_FAILED'),
-  securityKeyRotationFailed('SECURITY_KEY_ROTATION_FAILED');
+  securityKeyRotationFailed('SECURITY_KEY_ROTATION_FAILED'),
+  securityBootstrapVerificationFailed('SECURITY_BOOTSTRAP_VERIFICATION_FAILED');
 
   const ErrorCode(this.code);
 

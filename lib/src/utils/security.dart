@@ -9,6 +9,7 @@ import 'package:pointycastle/pointycastle.dart' as pc;
 
 import '../error/error_code.dart';
 import '../error/flagkit_exception.dart';
+import '../flagkit_options.dart';
 
 /// Logger interface for security warnings.
 abstract class Logger {
@@ -755,5 +756,223 @@ class KeyRotationManager {
       return true;
     }
     return false;
+  }
+}
+
+// ============================================================================
+// Bootstrap Value Verification (HMAC-SHA256)
+// ============================================================================
+
+/// Result of bootstrap signature verification.
+class BootstrapVerificationResult {
+  /// Whether the verification was successful.
+  final bool valid;
+
+  /// Error message if verification failed.
+  final String? error;
+
+  const BootstrapVerificationResult({
+    required this.valid,
+    this.error,
+  });
+
+  /// Creates a successful verification result.
+  const BootstrapVerificationResult.success()
+      : valid = true,
+        error = null;
+
+  /// Creates a failed verification result with an error message.
+  const BootstrapVerificationResult.failure(String message)
+      : valid = false,
+        error = message;
+}
+
+/// Canonicalizes a map to a consistent JSON string for signature verification.
+///
+/// This function ensures that the same data produces the same string regardless
+/// of key ordering by sorting keys alphabetically and recursively processing
+/// nested objects.
+String canonicalizeObject(Map<String, dynamic> obj) {
+  return _canonicalizeValue(obj);
+}
+
+/// Recursively canonicalizes a value (handles nested objects and arrays).
+String _canonicalizeValue(dynamic value) {
+  if (value == null) {
+    return 'null';
+  } else if (value is bool) {
+    return value.toString();
+  } else if (value is num) {
+    // Use standard JSON number formatting
+    if (value is int) {
+      return value.toString();
+    }
+    // Handle doubles - remove trailing zeros for consistency
+    return value.toString();
+  } else if (value is String) {
+    // JSON-encode strings to handle escaping
+    return jsonEncode(value);
+  } else if (value is List) {
+    final items = value.map(_canonicalizeValue).join(',');
+    return '[$items]';
+  } else if (value is Map<String, dynamic>) {
+    // Sort keys alphabetically
+    final sortedKeys = value.keys.toList()..sort();
+    final pairs = sortedKeys.map((key) {
+      final canonicalValue = _canonicalizeValue(value[key]);
+      return '${jsonEncode(key)}:$canonicalValue';
+    }).join(',');
+    return '{$pairs}';
+  } else {
+    // Fallback for other types
+    return jsonEncode(value);
+  }
+}
+
+/// Verifies an HMAC-SHA256 signature for bootstrap data.
+///
+/// Returns a [BootstrapVerificationResult] indicating whether the signature
+/// is valid and any error message if not.
+///
+/// The signature is computed over the canonicalized flags combined with
+/// the timestamp: `$timestamp.$canonicalizedFlags`
+BootstrapVerificationResult verifyBootstrapSignature(
+  BootstrapConfig bootstrap,
+  String apiKey,
+  BootstrapVerificationConfig config,
+) {
+  // If verification is disabled, always succeed
+  if (!config.enabled) {
+    return const BootstrapVerificationResult.success();
+  }
+
+  // If no signature provided, fail (when verification is enabled)
+  if (bootstrap.signature == null) {
+    return const BootstrapVerificationResult.failure(
+      'Bootstrap signature is missing',
+    );
+  }
+
+  // Check timestamp age if provided
+  if (bootstrap.timestamp != null) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final age = now - bootstrap.timestamp!;
+
+    if (age > config.maxAge) {
+      return BootstrapVerificationResult.failure(
+        'Bootstrap data has expired (age: ${age}ms, maxAge: ${config.maxAge}ms)',
+      );
+    }
+
+    if (age < 0) {
+      return const BootstrapVerificationResult.failure(
+        'Bootstrap timestamp is in the future',
+      );
+    }
+  }
+
+  // Canonicalize the flags
+  final canonicalFlags = canonicalizeObject(bootstrap.flags);
+
+  // Build the message: timestamp.canonicalFlags (or just canonicalFlags if no timestamp)
+  final message = bootstrap.timestamp != null
+      ? '${bootstrap.timestamp}.$canonicalFlags'
+      : canonicalFlags;
+
+  // Compute expected signature
+  final expectedSignature = generateHMACSHA256(message, apiKey);
+
+  // Constant-time comparison to prevent timing attacks
+  final isValid = _constantTimeEquals(bootstrap.signature!, expectedSignature);
+
+  if (!isValid) {
+    return const BootstrapVerificationResult.failure(
+      'Bootstrap signature verification failed - signature mismatch',
+    );
+  }
+
+  return const BootstrapVerificationResult.success();
+}
+
+/// Performs constant-time string comparison to prevent timing attacks.
+///
+/// Returns true if the two strings are equal.
+bool _constantTimeEquals(String a, String b) {
+  if (a.length != b.length) {
+    // Still perform comparison to maintain constant time
+    var result = 0;
+    for (var i = 0; i < a.length; i++) {
+      result |= a.codeUnitAt(i) ^ (i < b.length ? b.codeUnitAt(i) : 0);
+    }
+    return false;
+  }
+
+  var result = 0;
+  for (var i = 0; i < a.length; i++) {
+    result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+  }
+  return result == 0;
+}
+
+/// Creates a signed bootstrap configuration.
+///
+/// Use this to generate bootstrap data that can be verified by the SDK.
+///
+/// Example:
+/// ```dart
+/// final bootstrap = createSignedBootstrap(
+///   {'feature-flag': true},
+///   'sdk_your_api_key',
+/// );
+/// ```
+BootstrapConfig createSignedBootstrap(
+  Map<String, dynamic> flags,
+  String apiKey, [
+  int? timestamp,
+]) {
+  final ts = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+  final canonicalFlags = canonicalizeObject(flags);
+  final message = '$ts.$canonicalFlags';
+  final signature = generateHMACSHA256(message, apiKey);
+
+  return BootstrapConfig(
+    flags: flags,
+    signature: signature,
+    timestamp: ts,
+  );
+}
+
+/// Handles bootstrap verification failures according to the configured behavior.
+///
+/// Throws [SecurityException] if onFailure is "error".
+/// Logs a warning if onFailure is "warn" (using provided callback).
+/// Does nothing if onFailure is "ignore".
+void handleBootstrapVerificationFailure(
+  BootstrapVerificationResult result,
+  BootstrapVerificationConfig config, {
+  void Function(String message)? onWarn,
+}) {
+  if (result.valid) {
+    return;
+  }
+
+  final message = '[FlagKit Security] Bootstrap verification failed: ${result.error}';
+
+  switch (config.onFailure) {
+    case 'error':
+      throw SecurityException.bootstrapVerificationFailed(result.error ?? 'Unknown error');
+    case 'warn':
+      onWarn?.call(message);
+      // Also print to console for visibility
+      // ignore: avoid_print
+      print(message);
+      break;
+    case 'ignore':
+      // Do nothing
+      break;
+    default:
+      // Default to warn behavior
+      onWarn?.call(message);
+      break;
   }
 }
