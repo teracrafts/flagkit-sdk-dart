@@ -2,6 +2,11 @@
 
 Official Dart/Flutter SDK for [FlagKit](https://flagkit.dev) feature flag management.
 
+## Requirements
+
+- Dart SDK 3.0.0+
+- Flutter 3.10.0+ (for Flutter projects)
+
 ## Installation
 
 Add FlagKit to your `pubspec.yaml`:
@@ -41,6 +46,16 @@ void main() async {
   FlagKit.close();
 }
 ```
+
+## Features
+
+- **Type-safe evaluation** - Boolean, string, number, and JSON flag types
+- **Local caching** - Fast evaluations with configurable TTL and optional encryption
+- **Background polling** - Automatic flag updates
+- **Event tracking** - Analytics with batching and crash-resilient persistence
+- **Resilient** - Circuit breaker, retry with exponential backoff, offline support
+- **Flutter integration** - Provider pattern and widget helpers
+- **Security** - PII detection, request signing, bootstrap verification, timing attack protection
 
 ## Configuration
 
@@ -319,10 +334,169 @@ for (final entry in allFlags.entries) {
 | `srv_` | Server | Server-side applications |
 | `cli_` | CLI | Command-line tools |
 
-## Requirements
+## Security Features
 
-- Dart SDK 3.0.0 or higher
-- Flutter 3.10.0 or higher (for Flutter projects)
+### PII Detection
+
+The SDK can detect and warn about potential PII in contexts and events:
+
+```dart
+// Enable strict PII mode - throws errors instead of warnings
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  strictPIIMode: true,
+);
+
+// Attributes containing PII will throw SecurityException
+try {
+  FlagKit.identify('user-123', {'email': 'user@example.com'});
+} on FlagKitException catch (e) {
+  print('PII error: ${e.message}');
+}
+
+// Use privateAttribute to mark fields as intentionally containing PII
+final context = EvaluationContextBuilder()
+    .userId('user-123')
+    .attribute('email', 'user@example.com')
+    .privateAttribute('email')  // Marks as intentionally private
+    .build();
+```
+
+### Request Signing
+
+POST requests are signed with HMAC-SHA256 for integrity:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  enableRequestSigning: false,  // Disable if needed (enabled by default)
+);
+```
+
+### Bootstrap Signature Verification
+
+Verify bootstrap data integrity using HMAC signatures:
+
+```dart
+// Create signed bootstrap data
+final bootstrap = Security.createBootstrapSignature(
+  flags: {'feature-a': true, 'feature-b': 'value'},
+  apiKey: 'sdk_your_api_key',
+);
+
+// Use signed bootstrap with verification
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  bootstrapConfig: bootstrap,
+  bootstrapVerification: BootstrapVerificationConfig(
+    enabled: true,
+    maxAge: 86400000,  // 24 hours in milliseconds
+    onFailure: 'error',  // 'warn' (default), 'error', or 'ignore'
+  ),
+);
+```
+
+### Cache Encryption
+
+Enable AES-256-GCM encryption for cached flag data:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  enableCacheEncryption: true,
+);
+```
+
+### Evaluation Jitter (Timing Attack Protection)
+
+Add random delays to flag evaluations to prevent cache timing attacks:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  evaluationJitter: EvaluationJitterConfig(
+    enabled: true,
+    minMs: 5,
+    maxMs: 15,
+  ),
+);
+```
+
+### Error Sanitization
+
+Automatically redact sensitive information from error messages:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  errorSanitization: ErrorSanitizationConfig(
+    enabled: true,
+    preserveOriginal: false,  // Set true for debugging
+  ),
+);
+```
+
+## Event Persistence
+
+Enable crash-resilient event persistence:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_...',
+  persistEvents: true,
+  eventStoragePath: '/path/to/storage',  // Optional
+  maxPersistedEvents: 10000,
+  persistenceFlushInterval: Duration(milliseconds: 1000),
+);
+```
+
+## Key Rotation
+
+Support seamless API key rotation:
+
+```dart
+final options = FlagKitOptions(
+  apiKey: 'sdk_primary_key',
+  secondaryApiKey: 'sdk_secondary_key',
+);
+// SDK will automatically failover to secondary key on 401 errors
+```
+
+## All Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | String | Required | API key for authentication |
+| `secondaryApiKey` | String? | null | Secondary key for rotation |
+| `pollingInterval` | Duration | 30s | Polling interval |
+| `enablePolling` | bool | true | Enable background polling |
+| `cacheTtl` | Duration | 300s | Cache TTL |
+| `maxCacheSize` | int | 1000 | Maximum cache entries |
+| `cacheEnabled` | bool | true | Enable local caching |
+| `enableCacheEncryption` | bool | false | Enable AES-256-GCM encryption |
+| `eventsEnabled` | bool | true | Enable event tracking |
+| `eventBatchSize` | int | 10 | Events per batch |
+| `eventFlushInterval` | Duration | 30s | Interval between flushes |
+| `timeout` | Duration | 10s | Request timeout |
+| `retryAttempts` | int | 3 | Number of retry attempts |
+| `circuitBreakerThreshold` | int | 5 | Failures before circuit opens |
+| `circuitBreakerResetTimeout` | Duration | 30s | Time before half-open |
+| `bootstrap` | Map? | null | Initial flag values |
+| `bootstrapConfig` | BootstrapConfig? | null | Signed bootstrap data |
+| `bootstrapVerification` | Config | enabled | Bootstrap verification settings |
+| `localPort` | int? | null | Local development port |
+| `offline` | bool | false | Offline mode |
+| `strictPIIMode` | bool | false | Error on PII detection |
+| `enableRequestSigning` | bool | true | Enable request signing |
+| `persistEvents` | bool | false | Enable event persistence |
+| `eventStoragePath` | String? | null | Event storage directory |
+| `maxPersistedEvents` | int | 10000 | Max persisted events |
+| `persistenceFlushInterval` | Duration | 1s | Persistence flush interval |
+| `evaluationJitter` | Config | disabled | Timing attack protection |
+| `errorSanitization` | Config | enabled | Sanitize error messages |
+| `onReady` | Function? | null | Ready callback |
+| `onError` | Function? | null | Error callback |
+| `onUpdate` | Function? | null | Update callback |
 
 ## License
 
