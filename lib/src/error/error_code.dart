@@ -12,11 +12,15 @@ enum ErrorCode {
   authMissingKey('AUTH_MISSING_KEY'),
   authUnauthorized('AUTH_UNAUTHORIZED'),
   authPermissionDenied('AUTH_PERMISSION_DENIED'),
+  authIpRestricted('AUTH_IP_RESTRICTED'),
+  authOrganizationRequired('AUTH_ORGANIZATION_REQUIRED'),
+  authSubscriptionSuspended('AUTH_SUBSCRIPTION_SUSPENDED'),
 
   // Network errors
   networkError('NETWORK_ERROR'),
   networkTimeout('NETWORK_TIMEOUT'),
   networkRetryLimit('NETWORK_RETRY_LIMIT'),
+  networkServiceUnavailable('NETWORK_SERVICE_UNAVAILABLE'),
 
   // HTTP errors
   httpBadRequest('HTTP_BAD_REQUEST'),
@@ -78,6 +82,13 @@ enum ErrorCode {
   configInvalidPollingInterval('CONFIG_INVALID_POLLING_INTERVAL'),
   configInvalidCacheTtl('CONFIG_INVALID_CACHE_TTL'),
 
+  // Streaming errors (1800-1899)
+  streamingTokenInvalid('STREAMING_TOKEN_INVALID'),
+  streamingTokenExpired('STREAMING_TOKEN_EXPIRED'),
+  streamingSubscriptionSuspended('STREAMING_SUBSCRIPTION_SUSPENDED'),
+  streamingConnectionLimit('STREAMING_CONNECTION_LIMIT'),
+  streamingUnavailable('STREAMING_UNAVAILABLE'),
+
   // Security errors
   securityLocalPortInProduction('SECURITY_LOCAL_PORT_IN_PRODUCTION'),
   securityPIIDetected('SECURITY_PII_DETECTED'),
@@ -96,6 +107,7 @@ enum ErrorCode {
     ErrorCode.networkError,
     ErrorCode.networkTimeout,
     ErrorCode.networkRetryLimit,
+    ErrorCode.networkServiceUnavailable,
     ErrorCode.circuitOpen,
     ErrorCode.httpCircuitOpen,
     ErrorCode.httpTimeout,
@@ -107,5 +119,9 @@ enum ErrorCode {
     ErrorCode.evalCacheMiss,
     ErrorCode.evalNetworkError,
     ErrorCode.eventSendFailed,
+    ErrorCode.streamingTokenInvalid,
+    ErrorCode.streamingTokenExpired,
+    ErrorCode.streamingConnectionLimit,
+    ErrorCode.streamingUnavailable,
   };
 }
