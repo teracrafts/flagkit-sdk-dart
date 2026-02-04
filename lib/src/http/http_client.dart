@@ -12,6 +12,52 @@ import '../utils/security.dart';
 /// SDK version for User-Agent header.
 const String sdkVersion = '1.0.0';
 
+/// Valid subscription status values.
+const List<String> validSubscriptionStatuses = [
+  'active',
+  'trial',
+  'past_due',
+  'suspended',
+  'cancelled',
+];
+
+/// Usage metrics extracted from response headers.
+///
+/// Contains information about API and evaluation usage limits,
+/// rate limiting warnings, and subscription status.
+class UsageMetrics {
+  /// Percentage of API call limit used this period (0-150+).
+  final double? apiUsagePercent;
+
+  /// Percentage of evaluation limit used (0-150+).
+  final double? evaluationUsagePercent;
+
+  /// Whether approaching rate limit threshold.
+  final bool rateLimitWarning;
+
+  /// Current subscription status.
+  final String? subscriptionStatus;
+
+  const UsageMetrics({
+    this.apiUsagePercent,
+    this.evaluationUsagePercent,
+    this.rateLimitWarning = false,
+    this.subscriptionStatus,
+  });
+
+  @override
+  String toString() {
+    return 'UsageMetrics('
+        'apiUsagePercent: $apiUsagePercent, '
+        'evaluationUsagePercent: $evaluationUsagePercent, '
+        'rateLimitWarning: $rateLimitWarning, '
+        'subscriptionStatus: $subscriptionStatus)';
+  }
+}
+
+/// Callback type for usage metrics updates.
+typedef UsageUpdateCallback = void Function(UsageMetrics metrics);
+
 /// HTTP client with retry logic and circuit breaker.
 ///
 /// Handles all HTTP communication with the FlagKit API including:
@@ -20,15 +66,21 @@ const String sdkVersion = '1.0.0';
 /// - Request timeout handling
 /// - Request signing (HMAC-SHA256) for POST requests
 /// - Key rotation on 401 errors
+/// - Usage metrics extraction from response headers
 class FlagKitHttpClient {
   final FlagKitOptions options;
   final http.Client _client;
   final CircuitBreaker _circuitBreaker;
   final Random _random = Random();
   final KeyRotationManager _keyRotation;
+  final UsageUpdateCallback? _onUsageUpdate;
 
-  FlagKitHttpClient(this.options, {http.Client? client, int? localPort})
-      : _client = client ?? http.Client(),
+  FlagKitHttpClient(
+    this.options, {
+    http.Client? client,
+    int? localPort,
+    UsageUpdateCallback? onUsageUpdate,
+  })  : _client = client ?? http.Client(),
         _circuitBreaker = CircuitBreaker(
           threshold: options.circuitBreakerThreshold,
           resetTimeout: options.circuitBreakerResetTimeout,
@@ -36,7 +88,8 @@ class FlagKitHttpClient {
         _keyRotation = KeyRotationManager(
           primaryApiKey: options.apiKey,
           secondaryApiKey: options.secondaryApiKey,
-        );
+        ),
+        _onUsageUpdate = onUsageUpdate;
 
   /// Gets the currently active API key.
   String get activeApiKey => _keyRotation.activeKey;
@@ -124,6 +177,12 @@ class FlagKitHttpClient {
       throw FlagKitException.networkError(
           ErrorCode.httpTimeout, 'Request timed out');
     });
+
+    // Extract and process usage metrics from response headers
+    final usageMetrics = extractUsageMetrics(response.headers);
+    if (usageMetrics != null && _onUsageUpdate != null) {
+      _onUsageUpdate!(usageMetrics);
+    }
 
     if (!_isSuccess(response.statusCode)) {
       throw _statusToError(response.statusCode, response.body);
@@ -223,6 +282,12 @@ class FlagKitHttpClient {
 
   T _handleResponse<T>(
       http.Response response, T Function(Map<String, dynamic>) fromJson) {
+    // Extract and process usage metrics from response headers
+    final usageMetrics = extractUsageMetrics(response.headers);
+    if (usageMetrics != null && _onUsageUpdate != null) {
+      _onUsageUpdate!(usageMetrics);
+    }
+
     if (_isSuccess(response.statusCode)) {
       try {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -237,6 +302,82 @@ class FlagKitHttpClient {
     } else {
       throw _statusToError(response.statusCode, response.body);
     }
+  }
+
+  /// Extracts usage metrics from response headers.
+  ///
+  /// Headers parsed:
+  /// - X-API-Usage-Percent -> apiUsagePercent
+  /// - X-Evaluation-Usage-Percent -> evaluationUsagePercent
+  /// - X-Rate-Limit-Warning -> rateLimitWarning ("true" = true)
+  /// - X-Subscription-Status -> subscriptionStatus (active, trial, past_due, suspended, cancelled)
+  ///
+  /// Returns null if no usage headers are present.
+  /// Logs warnings when usage >= 80%.
+  UsageMetrics? extractUsageMetrics(Map<String, String> headers) {
+    // Normalize headers to lowercase for case-insensitive lookup
+    final normalizedHeaders = headers.map(
+      (key, value) => MapEntry(key.toLowerCase(), value),
+    );
+
+    final apiUsage = normalizedHeaders['x-api-usage-percent'];
+    final evalUsage = normalizedHeaders['x-evaluation-usage-percent'];
+    final rateLimitWarning = normalizedHeaders['x-rate-limit-warning'];
+    final subscriptionStatus = normalizedHeaders['x-subscription-status'];
+
+    // Return null if no usage headers present
+    if (apiUsage == null &&
+        evalUsage == null &&
+        rateLimitWarning == null &&
+        subscriptionStatus == null) {
+      return null;
+    }
+
+    double? apiUsagePercent;
+    double? evaluationUsagePercent;
+    String? validatedSubscriptionStatus;
+
+    // Parse API usage percentage
+    if (apiUsage != null) {
+      final parsed = double.tryParse(apiUsage);
+      if (parsed != null) {
+        apiUsagePercent = parsed;
+      }
+    }
+
+    // Parse evaluation usage percentage
+    if (evalUsage != null) {
+      final parsed = double.tryParse(evalUsage);
+      if (parsed != null) {
+        evaluationUsagePercent = parsed;
+      }
+    }
+
+    // Validate subscription status
+    if (subscriptionStatus != null &&
+        validSubscriptionStatuses.contains(subscriptionStatus)) {
+      validatedSubscriptionStatus = subscriptionStatus;
+    }
+
+    final metrics = UsageMetrics(
+      apiUsagePercent: apiUsagePercent,
+      evaluationUsagePercent: evaluationUsagePercent,
+      rateLimitWarning: rateLimitWarning == 'true',
+      subscriptionStatus: validatedSubscriptionStatus,
+    );
+
+    // Log warnings for high usage
+    if (apiUsagePercent != null && apiUsagePercent >= 80) {
+      print('[FlagKit] Warning: API usage at $apiUsagePercent%');
+    }
+    if (evaluationUsagePercent != null && evaluationUsagePercent >= 80) {
+      print('[FlagKit] Warning: Evaluation usage at $evaluationUsagePercent%');
+    }
+    if (validatedSubscriptionStatus == 'suspended') {
+      print('[FlagKit] Error: Subscription suspended - service degraded');
+    }
+
+    return metrics;
   }
 
   bool _isSuccess(int statusCode) => statusCode >= 200 && statusCode < 300;
