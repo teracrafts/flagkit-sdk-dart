@@ -296,6 +296,25 @@ class FlagKitOptions {
   /// Callback when flags are updated.
   final void Function(List<dynamic> flags)? onUpdate;
 
+  /// Callback when usage metrics are received from the server.
+  ///
+  /// This callback is invoked whenever the server returns usage information
+  /// in response headers, allowing applications to monitor API and
+  /// evaluation usage, rate limit warnings, and subscription status.
+  final void Function(dynamic metrics)? onUsageUpdate;
+
+  /// Callback when a subscription error occurs during streaming.
+  ///
+  /// Called when the server sends a SUBSCRIPTION_SUSPENDED error via SSE,
+  /// allowing applications to notify users about subscription issues.
+  final void Function(String message)? onSubscriptionError;
+
+  /// Callback when connection limit is reached during streaming.
+  ///
+  /// Called when the server sends a CONNECTION_LIMIT error via SSE,
+  /// indicating too many concurrent streaming connections.
+  final void Function()? onConnectionLimitError;
+
   /// Whether the SDK is configured for local development.
   bool get isLocal => localPort != null;
 
@@ -336,6 +355,9 @@ class FlagKitOptions {
     this.onReady,
     this.onError,
     this.onUpdate,
+    this.onUsageUpdate,
+    this.onSubscriptionError,
+    this.onConnectionLimitError,
   });
 
   /// Validates the configuration options.
@@ -441,6 +463,9 @@ class FlagKitOptions {
     void Function()? onReady,
     void Function(Object error)? onError,
     void Function(List<dynamic> flags)? onUpdate,
+    void Function(dynamic metrics)? onUsageUpdate,
+    void Function(String message)? onSubscriptionError,
+    void Function()? onConnectionLimitError,
   }) {
     return FlagKitOptions(
       apiKey: apiKey ?? this.apiKey,
@@ -480,6 +505,9 @@ class FlagKitOptions {
       onReady: onReady ?? this.onReady,
       onError: onError ?? this.onError,
       onUpdate: onUpdate ?? this.onUpdate,
+      onUsageUpdate: onUsageUpdate ?? this.onUsageUpdate,
+      onSubscriptionError: onSubscriptionError ?? this.onSubscriptionError,
+      onConnectionLimitError: onConnectionLimitError ?? this.onConnectionLimitError,
     );
   }
 
@@ -526,6 +554,9 @@ class FlagKitOptionsBuilder {
   void Function()? _onReady;
   void Function(Object error)? _onError;
   void Function(List<dynamic> flags)? _onUpdate;
+  void Function(dynamic metrics)? _onUsageUpdate;
+  void Function(String message)? _onSubscriptionError;
+  void Function()? _onConnectionLimitError;
 
   /// Creates a builder with the required API key.
   FlagKitOptionsBuilder(this._apiKey);
@@ -725,6 +756,30 @@ class FlagKitOptionsBuilder {
     return this;
   }
 
+  /// Sets the callback for usage metrics updates.
+  ///
+  /// Called whenever the server returns usage information in response headers.
+  FlagKitOptionsBuilder onUsageUpdate(void Function(dynamic metrics) callback) {
+    _onUsageUpdate = callback;
+    return this;
+  }
+
+  /// Sets the callback for subscription errors during streaming.
+  ///
+  /// Called when the server sends a SUBSCRIPTION_SUSPENDED error via SSE.
+  FlagKitOptionsBuilder onSubscriptionError(void Function(String message) callback) {
+    _onSubscriptionError = callback;
+    return this;
+  }
+
+  /// Sets the callback for connection limit errors during streaming.
+  ///
+  /// Called when the server sends a CONNECTION_LIMIT error via SSE.
+  FlagKitOptionsBuilder onConnectionLimitError(void Function() callback) {
+    _onConnectionLimitError = callback;
+    return this;
+  }
+
   /// Builds the FlagKitOptions.
   FlagKitOptions build() {
     return FlagKitOptions(
@@ -760,6 +815,9 @@ class FlagKitOptionsBuilder {
       onReady: _onReady,
       onError: _onError,
       onUpdate: _onUpdate,
+      onUsageUpdate: _onUsageUpdate,
+      onSubscriptionError: _onSubscriptionError,
+      onConnectionLimitError: _onConnectionLimitError,
     );
   }
 }
