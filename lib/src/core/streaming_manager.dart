@@ -15,6 +15,80 @@ enum StreamingState {
   failed,
 }
 
+/// SSE error codes from server.
+///
+/// These codes indicate specific error conditions that require
+/// different handling strategies.
+enum StreamErrorCode {
+  /// Token is invalid, need full re-authentication.
+  tokenInvalid,
+
+  /// Token has expired, refresh and reconnect.
+  tokenExpired,
+
+  /// Subscription is suspended, notify user and fall back.
+  subscriptionSuspended,
+
+  /// Too many concurrent connections.
+  connectionLimit,
+
+  /// Streaming service is unavailable, fall back to polling.
+  streamingUnavailable,
+}
+
+/// SSE error event data structure.
+///
+/// Contains the error code and human-readable message
+/// received from the server via SSE error events.
+class StreamErrorData {
+  /// The error code indicating the type of error.
+  final StreamErrorCode code;
+
+  /// Human-readable error message.
+  final String message;
+
+  const StreamErrorData({
+    required this.code,
+    required this.message,
+  });
+
+  /// Parses a StreamErrorCode from a string.
+  ///
+  /// Returns null if the string does not match any known error code.
+  static StreamErrorCode? parseCode(String codeString) {
+    return switch (codeString) {
+      'TOKEN_INVALID' => StreamErrorCode.tokenInvalid,
+      'TOKEN_EXPIRED' => StreamErrorCode.tokenExpired,
+      'SUBSCRIPTION_SUSPENDED' => StreamErrorCode.subscriptionSuspended,
+      'CONNECTION_LIMIT' => StreamErrorCode.connectionLimit,
+      'STREAMING_UNAVAILABLE' => StreamErrorCode.streamingUnavailable,
+      _ => null,
+    };
+  }
+
+  /// Creates a StreamErrorData from JSON.
+  ///
+  /// Returns null if the JSON is invalid or contains an unknown error code.
+  static StreamErrorData? fromJson(Map<String, dynamic> json) {
+    final codeString = json['code'] as String?;
+    final message = json['message'] as String?;
+
+    if (codeString == null || message == null) {
+      return null;
+    }
+
+    final code = parseCode(codeString);
+    if (code == null) {
+      return null;
+    }
+
+    return StreamErrorData(code: code, message: message);
+  }
+
+  @override
+  String toString() => 'StreamErrorData(code: $code, message: $message)';
+}
+
 /// Response from the stream token endpoint.
 class _StreamTokenResponse {
   final String token;
@@ -53,6 +127,12 @@ typedef FlagDeleteCallback = void Function(String key);
 typedef FlagsResetCallback = void Function(List<FlagState> flags);
 typedef FallbackCallback = void Function();
 
+/// Callback for subscription errors.
+typedef SubscriptionErrorCallback = void Function(String message);
+
+/// Callback for connection limit errors.
+typedef ConnectionLimitErrorCallback = void Function();
+
 /// Manages Server-Sent Events (SSE) connection for real-time flag updates.
 ///
 /// Security: Uses token exchange pattern to avoid exposing API keys in URLs.
@@ -65,6 +145,7 @@ typedef FallbackCallback = void Function();
 /// - Automatic reconnection with exponential backoff
 /// - Graceful degradation to polling after max failures
 /// - Heartbeat monitoring for connection health
+/// - SSE error event handling for subscription and connection issues
 class StreamingManager {
   final String _baseUrl;
   final String Function() _getApiKey;
@@ -73,6 +154,8 @@ class StreamingManager {
   final FlagDeleteCallback _onFlagDelete;
   final FlagsResetCallback _onFlagsReset;
   final FallbackCallback _onFallbackToPolling;
+  final SubscriptionErrorCallback? _onSubscriptionError;
+  final ConnectionLimitErrorCallback? _onConnectionLimitError;
 
   StreamingState _state = StreamingState.disconnected;
   int _consecutiveFailures = 0;
@@ -91,13 +174,17 @@ class StreamingManager {
     required FlagDeleteCallback onFlagDelete,
     required FlagsResetCallback onFlagsReset,
     required FallbackCallback onFallbackToPolling,
+    SubscriptionErrorCallback? onSubscriptionError,
+    ConnectionLimitErrorCallback? onConnectionLimitError,
   })  : _baseUrl = baseUrl,
         _getApiKey = getApiKey,
         _config = config ?? StreamingConfig.defaultConfig,
         _onFlagUpdate = onFlagUpdate,
         _onFlagDelete = onFlagDelete,
         _onFlagsReset = onFlagsReset,
-        _onFallbackToPolling = onFallbackToPolling;
+        _onFallbackToPolling = onFallbackToPolling,
+        _onSubscriptionError = onSubscriptionError,
+        _onConnectionLimitError = onConnectionLimitError;
 
   /// Gets the current connection state.
   StreamingState get state => _state;
@@ -282,9 +369,81 @@ class StreamingManager {
         case 'heartbeat':
           _lastHeartbeat = DateTime.now();
           break;
+
+        case 'error':
+          _handleStreamError(data);
+          break;
       }
     } catch (e) {
       // Failed to process event
+    }
+  }
+
+  /// Handles SSE error events from the server.
+  ///
+  /// Error codes and their handling:
+  /// - TOKEN_INVALID: Re-authenticate completely
+  /// - TOKEN_EXPIRED: Refresh token and reconnect
+  /// - SUBSCRIPTION_SUSPENDED: Notify user, fall back to cached values
+  /// - CONNECTION_LIMIT: Implement backoff or close other connections
+  /// - STREAMING_UNAVAILABLE: Fall back to polling
+  void _handleStreamError(String data) {
+    try {
+      final errorJson = json.decode(data) as Map<String, dynamic>;
+      final errorData = StreamErrorData.fromJson(errorJson);
+
+      if (errorData == null) {
+        // Unknown error format, treat as connection failure
+        print('[FlagKit] Unknown SSE error format');
+        _handleConnectionFailure();
+        return;
+      }
+
+      print('[FlagKit] SSE error: ${errorData.code} - ${errorData.message}');
+
+      switch (errorData.code) {
+        case StreamErrorCode.tokenExpired:
+          // Token expired, refresh and reconnect
+          print('[FlagKit] Stream token expired, refreshing...');
+          _cleanup();
+          connect(); // Will fetch new token
+          break;
+
+        case StreamErrorCode.tokenInvalid:
+          // Token is invalid, need full re-authentication
+          print('[FlagKit] Stream token invalid, re-authenticating...');
+          _cleanup();
+          connect(); // Will fetch new token
+          break;
+
+        case StreamErrorCode.subscriptionSuspended:
+          // Subscription issue - notify and fall back
+          print('[FlagKit] Subscription suspended: ${errorData.message}');
+          _onSubscriptionError?.call(errorData.message);
+          _cleanup();
+          _state = StreamingState.failed;
+          _onFallbackToPolling();
+          break;
+
+        case StreamErrorCode.connectionLimit:
+          // Too many connections - implement backoff
+          print('[FlagKit] Connection limit reached, backing off...');
+          _onConnectionLimitError?.call();
+          _handleConnectionFailure();
+          break;
+
+        case StreamErrorCode.streamingUnavailable:
+          // Streaming not available - fall back to polling
+          print('[FlagKit] Streaming service unavailable, falling back to polling');
+          _cleanup();
+          _state = StreamingState.failed;
+          _onFallbackToPolling();
+          break;
+      }
+    } catch (e) {
+      // Not a JSON error event or failed to parse
+      print('[FlagKit] Failed to parse SSE error event: $e');
+      _handleConnectionFailure();
     }
   }
 
