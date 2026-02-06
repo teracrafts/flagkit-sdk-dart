@@ -16,8 +16,9 @@ import 'types/evaluation_result.dart';
 import 'types/flag_state.dart';
 import 'types/flag_value.dart';
 import 'flagkit_options.dart';
-import 'http/http_client.dart';
+import 'http/http_client.dart' show FlagKitHttpClient, sdkVersion;
 import 'utils/security.dart';
+import 'utils/version.dart';
 
 /// Main FlagKit client for feature flag evaluation.
 ///
@@ -223,6 +224,9 @@ class FlagKitClient {
       _projectId = response.projectId;
       _organizationId = response.organizationId;
       _lastUpdatedAt = response.serverTime;
+
+      // Check SDK version metadata and emit appropriate warnings
+      _checkVersionMetadata(response);
 
       // Initialize event queue if events are enabled
       if (options.eventsEnabled) {
@@ -901,6 +905,72 @@ class FlagKitClient {
     // Start polling automatically
     _pollingManager!.start();
   }
+
+  /// Check SDK version metadata from init response and emit appropriate warnings.
+  ///
+  /// Handles the following version metadata from the server:
+  /// - sdkVersionMin: Minimum required version (older may not work)
+  /// - sdkVersionRecommended: Recommended version for optimal experience
+  /// - sdkVersionLatest: Latest available version
+  /// - deprecationWarning: Server-provided deprecation message
+  void _checkVersionMetadata(_InitResponse response) {
+    final metadata = response.metadata;
+    if (metadata == null) {
+      return;
+    }
+
+    // Check for server-provided deprecation warning first
+    if (metadata.deprecationWarning != null && metadata.deprecationWarning!.isNotEmpty) {
+      _logWarning('[FlagKit] Deprecation Warning: ${metadata.deprecationWarning}');
+    }
+
+    // Check minimum version requirement
+    if (metadata.sdkVersionMin != null &&
+        isVersionLessThan(sdkVersion, metadata.sdkVersionMin!)) {
+      _logError(
+        '[FlagKit] SDK version $sdkVersion is below minimum required version ${metadata.sdkVersionMin}. '
+        'Some features may not work correctly. Please upgrade the SDK.',
+      );
+    }
+
+    // Check recommended version
+    if (metadata.sdkVersionRecommended != null &&
+        isVersionLessThan(sdkVersion, metadata.sdkVersionRecommended!)) {
+      _logWarning(
+        '[FlagKit] SDK version $sdkVersion is below recommended version ${metadata.sdkVersionRecommended}. '
+        'Consider upgrading for the best experience.',
+      );
+    }
+
+    // Log if a newer version is available (info level, not a warning)
+    // Only log if we haven't already warned about recommended
+    if (metadata.sdkVersionLatest != null &&
+        isVersionLessThan(sdkVersion, metadata.sdkVersionLatest!) &&
+        (metadata.sdkVersionRecommended == null ||
+            !isVersionLessThan(sdkVersion, metadata.sdkVersionRecommended!))) {
+      _logInfo(
+        '[FlagKit] SDK version $sdkVersion - a newer version ${metadata.sdkVersionLatest} is available.',
+      );
+    }
+  }
+
+  /// Log an info message to stderr.
+  void _logInfo(String message) {
+    // ignore: avoid_print
+    print(message);
+  }
+
+  /// Log a warning message to stderr.
+  void _logWarning(String message) {
+    // ignore: avoid_print
+    print('WARNING: $message');
+  }
+
+  /// Log an error message to stderr.
+  void _logError(String message) {
+    // ignore: avoid_print
+    print('ERROR: $message');
+  }
 }
 
 // Response models
@@ -951,11 +1021,15 @@ class _InitResponse {
 class _InitMetadata {
   final String? sdkVersionMin;
   final String? sdkVersionRecommended;
+  final String? sdkVersionLatest;
+  final String? deprecationWarning;
   final Map<String, bool>? features;
 
   _InitMetadata({
     this.sdkVersionMin,
     this.sdkVersionRecommended,
+    this.sdkVersionLatest,
+    this.deprecationWarning,
     this.features,
   });
 
@@ -963,6 +1037,8 @@ class _InitMetadata {
     return _InitMetadata(
       sdkVersionMin: json['sdkVersionMin'] as String?,
       sdkVersionRecommended: json['sdkVersionRecommended'] as String?,
+      sdkVersionLatest: json['sdkVersionLatest'] as String?,
+      deprecationWarning: json['deprecationWarning'] as String?,
       features: json['features'] != null
           ? Map<String, bool>.from(json['features'] as Map)
           : null,
