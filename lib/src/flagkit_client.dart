@@ -866,7 +866,7 @@ class FlagKitClient {
         httpClient: _httpClient,
         sessionId: sessionId,
         environmentId: _environmentId ?? '',
-        sdkVersion: '1.0.0',
+        sdkVersion: '1.0.1',
         config: EventQueueConfig(
           batchSize: options.eventBatchSize,
           flushIntervalMs: options.eventFlushInterval.inMilliseconds,
