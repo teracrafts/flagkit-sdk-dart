@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:flagkit/flagkit.dart';
+import 'package:teracrafts_flagkit/teracrafts_flagkit.dart';
 
 void main() {
   group('EventPersistence', () {
