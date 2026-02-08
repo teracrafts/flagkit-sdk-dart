@@ -13,7 +13,7 @@ Add FlagKit to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flagkit: ^1.0.0
+  teracrafts_flagkit: ^1.0.0
 ```
 
 Then run:
@@ -27,7 +27,7 @@ dart pub get
 ## Quick Start
 
 ```dart
-import 'package:flagkit/flagkit.dart';
+import 'package:teracrafts_flagkit/teracrafts_flagkit.dart';
 
 void main() async {
   // Initialize the SDK
