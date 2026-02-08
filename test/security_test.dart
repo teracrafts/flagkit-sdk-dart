@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:test/test.dart';
-import 'package:flagkit/flagkit.dart';
+import 'package:teracrafts_flagkit/teracrafts_flagkit.dart';
 
 /// Mock logger for testing.
 class MockLogger implements Logger {
