@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:flagkit/src/utils/version.dart';
+import 'package:teracrafts_flagkit/src/utils/version.dart';
 
 void main() {
   group('parseVersion', () {
