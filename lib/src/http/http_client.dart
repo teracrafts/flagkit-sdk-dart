@@ -10,7 +10,7 @@ import '../flagkit_options.dart';
 import '../utils/security.dart';
 
 /// SDK version for User-Agent header.
-const String sdkVersion = '1.0.7';
+const String sdkVersion = '1.0.8';
 
 /// Valid subscription status values.
 const List<String> validSubscriptionStatuses = [
