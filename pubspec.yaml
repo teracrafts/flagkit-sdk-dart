@@ -1,6 +1,6 @@
 name: teracrafts_flagkit
 description: Official Dart/Flutter SDK for FlagKit feature flag management
-version: 1.0.3
+version: 1.0.4
 repository: https://github.com/teracrafts/flagkit-sdk-dart
 homepage: https://flagkit.dev
 
