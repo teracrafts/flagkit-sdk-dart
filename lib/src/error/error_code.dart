@@ -90,7 +90,6 @@ enum ErrorCode {
   streamingUnavailable('STREAMING_UNAVAILABLE'),
 
   // Security errors
-  securityLocalPortInProduction('SECURITY_LOCAL_PORT_IN_PRODUCTION'),
   securityPIIDetected('SECURITY_PII_DETECTED'),
   securityEncryptionFailed('SECURITY_ENCRYPTION_FAILED'),
   securityDecryptionFailed('SECURITY_DECRYPTION_FAILED'),
