@@ -102,7 +102,6 @@ class FlagKitException implements Exception {
       }.contains(code);
 
   bool get isSecurityError => const {
-        ErrorCode.securityLocalPortInProduction,
         ErrorCode.securityPIIDetected,
         ErrorCode.securityEncryptionFailed,
         ErrorCode.securityDecryptionFailed,
@@ -146,21 +145,10 @@ class FlagKitException implements Exception {
 /// Exception thrown for security-related violations.
 ///
 /// This is a specialized exception for security issues like:
-/// - Using localPort in production environment
 /// - PII detected in strict mode
 /// - Encryption/decryption failures
 class SecurityException extends FlagKitException {
   SecurityException(super.code, super.message, [super.cause]);
-
-  /// Creates a security exception for local port usage in production.
-  factory SecurityException.localPortInProduction() {
-    return SecurityException(
-      ErrorCode.securityLocalPortInProduction,
-      'localPort cannot be used in production environment. '
-          'Set DART_ENV to a value other than "production" for local development.',
-    );
-  }
-
   /// Creates a security exception for PII detection in strict mode.
   factory SecurityException.piiDetected(List<String> fields) {
     return SecurityException(
