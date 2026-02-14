@@ -69,7 +69,6 @@ final options = FlagKitOptions(
   maxCacheSize: 1000,                          // Max cached flags
   timeout: Duration(seconds: 10),              // HTTP timeout
   retryAttempts: 3,                            // Retry count
-  localPort: 8200,                             // Use local server on port 8200
 );
 ```
 
@@ -80,7 +79,6 @@ final options = FlagKitOptions.builder('sdk_your_api_key')
     .pollingInterval(Duration(seconds: 60))
     .cacheTtl(Duration(minutes: 10))
     .maxCacheSize(500)
-    .localPort(8200)  // Use local server on port 8200
     .build();
 ```
 
@@ -91,7 +89,6 @@ For local development with a FlagKit server running on localhost:
 ```dart
 final options = FlagKitOptions(
   apiKey: 'sdk_your_api_key',
-  localPort: 8200,  // Uses http://localhost:8200/api/v1
 );
 ```
 
@@ -484,7 +481,6 @@ final options = FlagKitOptions(
 | `bootstrap` | Map? | null | Initial flag values |
 | `bootstrapConfig` | BootstrapConfig? | null | Signed bootstrap data |
 | `bootstrapVerification` | Config | enabled | Bootstrap verification settings |
-| `localPort` | int? | null | Local development port |
 | `offline` | bool | false | Offline mode |
 | `strictPIIMode` | bool | false | Error on PII detection |
 | `enableRequestSigning` | bool | true | Enable request signing |
