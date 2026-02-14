@@ -78,7 +78,6 @@ class FlagKitHttpClient {
   FlagKitHttpClient(
     this.options, {
     http.Client? client,
-    int? localPort,
     UsageUpdateCallback? onUsageUpdate,
   })  : _client = client ?? http.Client(),
         _circuitBreaker = CircuitBreaker(
