@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'error/error_code.dart';
 import 'error/error_sanitizer.dart';
 import 'error/flagkit_exception.dart';
@@ -135,6 +137,8 @@ class EvaluationJitterConfig {
 class FlagKitOptions {
   /// Default base URL for the FlagKit API.
   static const defaultBaseUrl = 'https://api.flagkit.dev/api/v1';
+  static const betaBaseUrl = 'https://api.beta.flagkit.dev/api/v1';
+  static const localBaseUrl = 'https://api.flagkit.on/api/v1';
 
   /// Default polling interval (30 seconds).
   static const defaultPollingInterval = Duration(seconds: 30);
@@ -227,9 +231,6 @@ class FlagKitOptions {
   /// Controls how the SDK handles verification of bootstrap data.
   final BootstrapVerificationConfig bootstrapVerification;
 
-  /// Local development port (overrides baseUrl to localhost).
-  final int? localPort;
-
   /// Whether to operate in offline mode.
   final bool offline;
 
@@ -315,12 +316,23 @@ class FlagKitOptions {
   /// indicating too many concurrent streaming connections.
   final void Function()? onConnectionLimitError;
 
-  /// Whether the SDK is configured for local development.
-  bool get isLocal => localPort != null;
-
-  /// Gets the effective base URL (accounting for local port).
-  String get effectiveBaseUrl =>
-      localPort != null ? 'http://localhost:$localPort/api/v1' : baseUrl;
+  /// Gets the effective base URL from internal SDK mode.
+  String get effectiveBaseUrl {
+    String envMode;
+    try {
+      envMode = (Platform.environment['FLAGKIT_MODE'] ?? '').trim().toLowerCase();
+    } catch (_) {
+      envMode = '';
+    }
+    switch (envMode) {
+      case 'local':
+        return localBaseUrl;
+      case 'beta':
+        return betaBaseUrl;
+      default:
+        return baseUrl;
+    }
+  }
 
   FlagKitOptions({
     required this.apiKey,
@@ -340,7 +352,6 @@ class FlagKitOptions {
     this.bootstrap,
     this.bootstrapConfig,
     this.bootstrapVerification = const BootstrapVerificationConfig(),
-    this.localPort,
     this.offline = false,
     this.secondaryApiKey,
     this.strictPIIMode = false,
@@ -424,9 +435,6 @@ class FlagKitOptions {
         'Circuit breaker threshold must be positive',
       );
     }
-
-    // Security validation: localPort in production
-    validateLocalPortSecurity(localPort);
   }
 
   /// Creates a copy of this options with the given fields replaced.
@@ -448,7 +456,6 @@ class FlagKitOptions {
     Map<String, dynamic>? bootstrap,
     BootstrapConfig? bootstrapConfig,
     BootstrapVerificationConfig? bootstrapVerification,
-    int? localPort,
     bool? offline,
     String? secondaryApiKey,
     bool? strictPIIMode,
@@ -488,7 +495,6 @@ class FlagKitOptions {
       bootstrapConfig: bootstrapConfig ?? this.bootstrapConfig,
       bootstrapVerification:
           bootstrapVerification ?? this.bootstrapVerification,
-      localPort: localPort ?? this.localPort,
       offline: offline ?? this.offline,
       secondaryApiKey: secondaryApiKey ?? this.secondaryApiKey,
       strictPIIMode: strictPIIMode ?? this.strictPIIMode,
@@ -539,7 +545,6 @@ class FlagKitOptionsBuilder {
   BootstrapConfig? _bootstrapConfig;
   BootstrapVerificationConfig _bootstrapVerification =
       const BootstrapVerificationConfig();
-  int? _localPort;
   bool _offline = false;
   String? _secondaryApiKey;
   bool _strictPIIMode = false;
@@ -654,12 +659,6 @@ class FlagKitOptionsBuilder {
   /// Sets bootstrap verification configuration.
   FlagKitOptionsBuilder bootstrapVerification(BootstrapVerificationConfig config) {
     _bootstrapVerification = config;
-    return this;
-  }
-
-  /// Sets the local development port.
-  FlagKitOptionsBuilder localPort(int port) {
-    _localPort = port;
     return this;
   }
 
@@ -800,7 +799,6 @@ class FlagKitOptionsBuilder {
       bootstrap: _bootstrap,
       bootstrapConfig: _bootstrapConfig,
       bootstrapVerification: _bootstrapVerification,
-      localPort: _localPort,
       offline: _offline,
       secondaryApiKey: _secondaryApiKey,
       strictPIIMode: _strictPIIMode,
