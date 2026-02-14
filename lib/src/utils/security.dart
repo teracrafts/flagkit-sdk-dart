@@ -271,20 +271,6 @@ bool isProductionEnvironment() {
   }
 }
 
-/// Validate local port usage in production.
-///
-/// Throws [SecurityException] if [localPort] is set while running
-/// in production environment (DART_ENV=production).
-void validateLocalPortSecurity(int? localPort) {
-  if (localPort == null) {
-    return;
-  }
-
-  if (isProductionEnvironment()) {
-    throw SecurityException.localPortInProduction();
-  }
-}
-
 /// Security configuration options.
 class SecurityConfig {
   /// Warn about potential PII in context/events.
