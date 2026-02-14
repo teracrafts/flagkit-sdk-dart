@@ -68,7 +68,7 @@ class FlagKitClient {
     this.onFlagsUpdated,
     this.onError,
     this.onReady,
-  })  : _httpClient = FlagKitHttpClient(options, localPort: options.localPort),
+  })  : _httpClient = FlagKitHttpClient(options),
         _cache = FlagCache(
           maxSize: options.maxCacheSize,
           ttl: options.cacheTtl,
