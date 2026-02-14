@@ -139,20 +139,12 @@ void main() {
       expect(options.bootstrap!['dark-mode'], isTrue);
       expect(options.bootstrap!['max-items'], equals(100));
     });
+  });
 
-    test('isLocal defaults to false when localPort is null', () {
+  group('effectiveBaseUrl', () {
+    test('returns default production URL when FLAGKIT_MODE is not set', () {
       final options = FlagKitOptions(apiKey: 'sdk_test_key');
-      expect(options.isLocal, isFalse);
-      expect(options.localPort, isNull);
-    });
-
-    test('isLocal is true when localPort is set', () {
-      final options = FlagKitOptions(
-        apiKey: 'sdk_test_key',
-        localPort: 8080,
-      );
-      expect(options.isLocal, isTrue);
-      expect(options.localPort, equals(8080));
+      expect(options.effectiveBaseUrl, equals('https://api.flagkit.dev/api/v1'));
     });
   });
 
@@ -193,22 +185,6 @@ void main() {
 
       expect(builder.pollingInterval(const Duration(seconds: 30)), same(builder));
       expect(builder.cacheTtl(const Duration(minutes: 5)), same(builder));
-    });
-
-    test('builder sets localPort', () {
-      final options = FlagKitOptions.builder('sdk_test_key')
-          .localPort(8080)
-          .build();
-
-      expect(options.isLocal, isTrue);
-      expect(options.localPort, equals(8080));
-    });
-
-    test('builder localPort defaults to null (isLocal false)', () {
-      final options = FlagKitOptions.builder('sdk_test_key').build();
-
-      expect(options.isLocal, isFalse);
-      expect(options.localPort, isNull);
     });
   });
 }
