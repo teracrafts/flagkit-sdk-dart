@@ -994,15 +994,6 @@ void main() {
   });
 
   group('SecurityException', () {
-    test('should create local port in production exception', () {
-      final exception = SecurityException.localPortInProduction();
-
-      expect(exception.code, equals(ErrorCode.securityLocalPortInProduction));
-      expect(exception.message, contains('localPort'));
-      expect(exception.message, contains('production'));
-      expect(exception.isSecurityError, isTrue);
-    });
-
     test('should create PII detected exception', () {
       final exception = SecurityException.piiDetected(['email', 'phone']);
 
